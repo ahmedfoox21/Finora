@@ -1,0 +1,6 @@
+{
+  "name": "Finora",
+  "description": "An intelligent, bilingual personal finance, salary management, and savings tracker with automated fixed expense detection, direct reminder simulation, and server-side Gemini AI financial insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

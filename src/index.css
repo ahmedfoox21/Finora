@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Tajawal:wght@300;400;500;700;900&family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Cairo", "Tajawal", "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  font-family: "Cairo", "Tajawal", "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #020617; /* slate-950 */
+}
+
+/* Safe Area Paddings for notch and edge clearance */
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top, 24px), 24px);
+}
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom, 24px), 24px);
+}
+.px-safe {
+  padding-left: max(env(safe-area-inset-left, 20px), 20px);
+  padding-right: max(env(safe-area-inset-right, 20px), 20px);
+}
+
+/* Smooth custom scrollbar for banking logs */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.2);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.4);
+}

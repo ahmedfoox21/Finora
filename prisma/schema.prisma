@@ -1,0 +1,164 @@
+// prisma/schema.prisma
+//
+// This is your Prisma schema file designed for Neon PostgreSQL in production.
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  passwordHash   String
+  salary         Float     @default(0)
+  salaryDate     Int       @default(25)
+  language       String    @default("ar") // "ar" | "en"
+  isSetupCompleted Boolean @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relationships
+  fixedExpenses     FixedExpense[]
+  additionalIncomes AdditionalIncome[]
+  expenses          Expense[]
+  goals             SavingGoal[]
+  borrowedRecords   BorrowRecord[]
+  notifications     Notification[]
+  aiInsights        AIInsight[]
+  deviceTokens      DeviceToken[]
+
+  @@index([email])
+}
+
+model FixedExpense {
+  id             String   @id @default(uuid())
+  userId         String
+  name           String
+  amount         Float
+  category       String   @default("Bills")
+  isAIDetected   Boolean  @default(false)
+  confidenceScore Float?
+  createdAt      DateTime @default(now())
+
+  // Relationship
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AdditionalIncome {
+  id        String   @id @default(uuid())
+  userId    String
+  source    String
+  amount    Float
+  createdAt DateTime @default(now())
+
+  // Relationship
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Expense {
+  id             String   @id @default(uuid())
+  userId         String
+  amount         Float
+  category       String
+  note           String?
+  date           String   // YYYY-MM-DD
+  isUnclassified Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  // Relationship
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model SavingGoal {
+  id           String   @id @default(uuid())
+  userId       String
+  name         String
+  targetAmount Float
+  savedAmount  Float    @default(0)
+  targetDate   String   // YYYY-MM-DD
+  imagePrompt  String?
+  imageUrl     String?
+  createdAt    DateTime @default(now())
+
+  // Relationship
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model BorrowRecord {
+  id           String   @id @default(uuid())
+  userId       String
+  debtorName   String   // اسم الشخص المدين المقترض
+  amount       Float    // اجمالي المبلغ المقرض
+  lentDate     String   // تاريخ الإقراض YYYY-MM-DD
+  dueDate      String?  // تاريخ الاستحقاق الاختياري YYYY-MM-DD
+  notes        String?  // أي ملاحظات إضافية
+  isRepaid     Boolean  @default(false)
+  repaidAmount Float    @default(0) // اجمالي المبالغ المسترجعة للتحصيل الجزئي
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationship
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRepaid])
+}
+
+model Notification {
+  id          String    @id @default(uuid())
+  userId      String
+  type        String    // "reminder" | "budget_warning" | "savings_milestone" | "ai_insight" | "unregistered_search" | "loan_reminder"
+  titleEn     String
+  titleAr     String
+  bodyEn      String
+  bodyAr      String
+  read        Boolean   @default(false)
+  status      String    @default("sent") // "sent", "delivered", "read"
+  deliveredAt DateTime?
+  date        DateTime  @default(now())
+
+  // Relationship
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+model AIInsight {
+  id        String   @id @default(uuid())
+  userId    String
+  category  String   // "tip" | "warning" | "praise" | "alert"
+  textEn    String
+  textAr    String
+  createdAt DateTime @default(now())
+
+  // Relationship
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  platform  String   @default("web") // "web" | "android" | "ios"
+  createdAt DateTime @default(now())
+
+  // Relationship
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
