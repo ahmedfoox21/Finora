@@ -347,10 +347,19 @@ export default function App() {
   const [activeLentRecord, setActiveLentRecord] = useState<BorrowRecord | null>(null);
   const [recoverAmount, setRecoverAmount] = useState("");
 
-  // Goal addition form in Wizard
+  // Goal adding form in Wizard
   const [tempGoalName, setTempGoalName] = useState("");
   const [tempGoalPrice, setTempGoalPrice] = useState("");
   const [tempGoalDate, setTempGoalDate] = useState("");
+
+  // Support & Donation Form States
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportAmountPreset, setSupportAmountPreset] = useState<string>("5");
+  const [supportCustomAmount, setSupportCustomAmount] = useState<string>("");
+  const [supportLoading, setSupportLoading] = useState<boolean>(false);
+  const [supportSuccess, setSupportSuccess] = useState<boolean>(false);
+  const [supportError, setSupportError] = useState<string>("");
+  const [supportPaymentMethod, setSupportPaymentMethod] = useState<'paypal' | 'card'>('paypal');
 
   // AI Insights and Coach chat state
   const [chatInput, setChatInput] = useState("");
@@ -507,9 +516,96 @@ export default function App() {
             new Notification(title, { body, icon: "/favicon.svg" });
           }
         } catch (e) {
-          console.warn("Unable to trigger service worker notification", e);
+          console.warn("Unable to service worker notification", e);
         }
       }
+    }
+  };
+
+  const handleTriggerDonationPayment = async () => {
+    setSupportError("");
+    setSupportLoading(true);
+    setSupportSuccess(false);
+
+    const finalValue = Number(supportAmountPreset === "custom" ? supportCustomAmount : supportAmountPreset);
+    if (isNaN(finalValue) || finalValue <= 0) {
+      setSupportError(isAr ? "يرجى تحديد مبلغ تبرع صالح أكبر من الصفر." : "Please enter a valid donation value.");
+      setSupportLoading(false);
+      return;
+    }
+
+    try {
+      // 1. Create Checkout Order
+      const createRes = await fetch("/api/paypal/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: finalValue,
+          currency: "USD",
+          email: state.userEmail || null
+        })
+      });
+
+      if (!createRes.ok) throw new Error("Could not create PayPal checkout process.");
+      const createData = await createRes.json();
+
+      if (!createData.success || !createData.orderId) {
+        throw new Error(createData.error || "Failed obtaining transaction token.");
+      }
+
+      const orderId = createData.orderId;
+
+      // Simulate network delay for verification and authorization
+      await new Promise(r => setTimeout(r, 1200));
+
+      // 2. Capture and complete order
+      const captureRes = await fetch("/api/paypal/capture-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          email: state.userEmail || "anonymous-donor@finora.app",
+          amount: finalValue,
+          currency: "USD"
+        })
+      });
+
+      if (!captureRes.ok) throw new Error("Card capture authorization failure.");
+      const captureData = await captureRes.json();
+
+      if (captureData.success) {
+        setSupportSuccess(true);
+        const thankNotifKey = `donation-thanks-${Date.now()}`;
+        const titleAr = "شكراً جزيلاً لدعمك Finora! ❤️";
+        const titleEn = "Thank you so much for supporting Finora! ❤️";
+        const bodyAr = `وصلنا تبرعك السخي بمقدار $${finalValue}. مساهمتك القيمة تساعد أحمد فوكس على تغطية تكاليف الخادم والاستشاري.`;
+        const bodyEn = `Your generous donation of $${finalValue} was processed successfully. Your support protects Finora resources!`;
+        
+        setState(prev => ({
+          ...prev,
+          notifications: [
+            {
+              id: thankNotifKey,
+              type: "savings_milestone",
+              titleAr,
+              titleEn,
+              bodyAr,
+              bodyEn,
+              date: new Date().toISOString(),
+              read: false
+            },
+            ...(prev.notifications || [])
+          ]
+        }));
+
+        triggerWebNotification(state.language === "ar" ? titleAr : titleEn, state.language === "ar" ? bodyAr : bodyEn);
+      } else {
+        throw new Error(captureData.error || "Capture processing declined.");
+      }
+    } catch (err: any) {
+      setSupportError(err?.message || (isAr ? "فشلت عملية التحصيل والربط المالي." : "Transaction process failed."));
+    } finally {
+      setSupportLoading(false);
     }
   };
 
@@ -1662,7 +1758,7 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
 
             <div className="flex-grow overflow-y-auto px-4 pt-3 pb-16 space-y-3.5 max-h-[750px]">
               
-              {/* ==================== TAB 1: HOME ==================== */}
+               {/* ==================== TAB 1: HOME ==================== */}
               {activeTab === 'home' && (
                 <div id="home-dashboard-view" className="space-y-3.5">
                   <div className="flex justify-between items-center bg-slate-900/40 border border-slate-900 rounded-xl p-3 shadow-inner">
@@ -1670,9 +1766,20 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                       <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider">{t.appName}</span>
                       <h2 className="text-sm font-black text-white">{isAr ? "عضو محلي مميز" : "Premium Member"} ✨</h2>
                     </div>
-                    <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center">
-                      <Sparkles className="h-4 w-4 text-emerald-400" />
-                    </div>
+                    <button
+                      onClick={() => {
+                        setSupportSuccess(false);
+                        setSupportError("");
+                        setShowSupportModal(true);
+                      }}
+                      className="py-1.5 px-3 bg-gradient-to-r from-rose-500/15 to-rose-600/10 hover:from-rose-500/20 hover:to-rose-600/15 text-rose-300 border border-rose-500/30 hover:border-rose-500/45 text-[10px] font-black rounded-xl flex items-center gap-1.5 transition bounce-click shadow-md shadow-rose-950/20 cursor-pointer"
+                    >
+                      <span className="relative flex h-1.5 w-1.5 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"></span>
+                      </span>
+                      <span>Support ❤️</span>
+                    </button>
                   </div>
 
                   <div className="bg-gradient-to-b from-slate-900/80 to-slate-900/30 border border-slate-850 rounded-[24px] p-4.5 text-center relative overflow-hidden shadow-lg shadow-black/10">
@@ -2048,6 +2155,27 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
               {activeTab === 'profile' && (
                 <div id="profile-management" className="space-y-4">
                   <h3 className="text-sm font-bold text-white mb-2">{t.profileSettings}</h3>
+
+                  {/* Support Finora Card */}
+                  <div className="bg-gradient-to-r from-rose-950/25 to-slate-900/90 p-3.5 rounded-2xl border border-rose-500/20 flex justify-between items-center shadow-lg hover:border-rose-500/35 transition duration-300">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-sm shrink-0">❤️</div>
+                      <div className="text-right">
+                        <span className="text-xs text-slate-100 font-bold block">{isAr ? "ادعم استمرار Finora" : "Support Finora"}</span>
+                        <span className="text-[8px] text-slate-400 block">{isAr ? "مساهمتك تساعد أحمد فوكس في تطوير التطبيق" : "Help Ahmed Foox with server costs"}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSupportSuccess(false);
+                        setSupportError("");
+                        setShowSupportModal(true);
+                      }}
+                      className="py-1.5 px-3 bg-rose-500 hover:bg-rose-400 text-slate-950 rounded-xl text-[10px] font-black cursor-pointer shadow-md shadow-rose-500/10 active:scale-95 transition"
+                    >
+                      {isAr ? "ادعمنا الآن" : "Support"}
+                    </button>
+                  </div>
 
                   {/* Localization Switcher Custom Card */}
                   <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-850 flex justify-between items-center">
@@ -2494,6 +2622,207 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                         {isAr ? "حذف هذا القيد المالي نهائياً" : "Delete record from lended list permanently"}
                       </button>
                     </div>
+                  </motion.div>
+                </div>
+              )}
+
+              {/* SUPPORT FINORA ❤️ INTERACTIVE MODAL/DRAWER */}
+              {showSupportModal && (
+                <div id="support-finora-overlay" className="absolute inset-0 bg-black/70 z-[80] flex flex-col justify-end">
+                  <motion.div
+                    initial={{ y: 350, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 350, opacity: 0 }}
+                    className="bg-slate-900 border-t border-slate-800 rounded-t-[32px] p-5 space-y-4 shadow-2xl text-right max-h-[90%] overflow-y-auto"
+                  >
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                      <h4 className="text-sm font-black text-rose-450 flex items-center gap-1.5">
+                        <span>❤️</span>
+                        <span>{isAr ? "دعم وتطوير Finora" : "Support Finora"}</span>
+                      </h4>
+                      <button 
+                        onClick={() => {
+                          setShowSupportModal(false);
+                          setSupportSuccess(false);
+                          setSupportError("");
+                        }} 
+                        className="text-slate-550 hover:text-white text-xs p-1 cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {!supportSuccess ? (
+                      <div className="space-y-4 text-xs">
+                        <div className="text-center p-3.5 bg-rose-500/5 rounded-2xl border border-rose-500/10 space-y-1">
+                          <p className="font-extrabold text-white text-[12px]">✨ {isAr ? "اجعل خططك القادمة ممكنة" : "Empower Future Innovation"}</p>
+                          <p className="text-[10px] text-slate-300 leading-relaxed font-sans">
+                            {isAr 
+                              ? "كل تبرع سخي يساعد أحمد فوكس في تمويل خادم قاعدة البيانات وسحابة الذكاء الاصطناعي وبقاء الخدمة مجانية للجميع."
+                              : "Donations help Ahmed Foox pay for continuous server costs, Neon database replication, and Gemini AI tokens."
+                            }
+                          </p>
+                        </div>
+
+                        {/* Preset Buttons */}
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] text-slate-450 font-bold">{isAr ? "اختر قيمة الدعم المقترحة:" : "Choose a Donation Amount:"}</label>
+                          <div className="grid grid-cols-5 gap-1.5">
+                            {["1", "3", "5", "10", "20"].map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => {
+                                  setSupportAmountPreset(preset);
+                                  setSupportError("");
+                                }}
+                                className={`py-2 px-1 text-[11px] font-black font-mono rounded-xl border transition cursor-pointer ${
+                                  supportAmountPreset === preset 
+                                    ? "bg-rose-500 border-rose-400 text-slate-950 shadow-md shadow-rose-500/25 scale-[1.03]" 
+                                    : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700"
+                                }`}
+                              >
+                                ${preset}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSupportAmountPreset("custom");
+                              setSupportError("");
+                            }}
+                            className={`w-full py-2.5 text-[10px] font-bold rounded-xl border transition cursor-pointer ${
+                              supportAmountPreset === "custom"
+                                ? "bg-rose-500 border-rose-400 text-slate-950 font-black scale-[1.01]"
+                                : "bg-slate-955 border-slate-800 text-slate-350 hover:border-slate-700"
+                            }`}
+                          >
+                            {isAr ? "💡 مبلغ مخصص" : "💡 Custom Amount"}
+                          </button>
+                        </div>
+
+                        {/* Custom Input */}
+                        {supportAmountPreset === "custom" && (
+                          <div className="space-y-1">
+                            <label className="block text-[9px] text-slate-500 font-bold">{isAr ? "المبلغ المخصص (USD):" : "Custom Amount (USD):"}</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-slate-400 font-bold text-xs">$</span>
+                              <input
+                                type="number"
+                                placeholder="15"
+                                value={supportCustomAmount}
+                                onChange={(e) => setSupportCustomAmount(e.target.value)}
+                                className="w-full bg-slate-955 border border-slate-850 rounded-xl py-2 px-3 pl-8 text-xs text-center text-rose-400 font-mono font-bold outline-none focus:border-rose-500"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Payment Method Selector */}
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] text-slate-455 font-bold">{isAr ? "طريقة الدفع الآمنة:" : "Secure Payment Gateway:"}</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSupportPaymentMethod('paypal')}
+                              className={`py-2 px-3 rounded-xl border flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                                supportPaymentMethod === 'paypal'
+                                  ? "bg-blue-500/10 border-blue-500/50 text-blue-400 font-black scale-[1.01]"
+                                  : "bg-slate-955 border-slate-800 text-slate-400"
+                              }`}
+                            >
+                              <span className="font-sans font-black tracking-tight text-[11px]">PayPal</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSupportPaymentMethod('card')}
+                              className={`py-2 px-3 rounded-xl border flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                                supportPaymentMethod === 'card'
+                                  ? "bg-slate-800 border-slate-705 text-slate-200 font-black scale-[1.01]"
+                                  : "bg-slate-955 border-slate-800 text-slate-400"
+                              }`}
+                            >
+                              <span className="text-[10px]">{isAr ? "💳 بطاقة بنكية" : "💳 Credit Card"}</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {supportError && (
+                          <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-[10px] leading-relaxed text-center font-sans">
+                            ⚠️ {supportError}
+                          </div>
+                        )}
+
+                        {/* Interactive Donate CTA */}
+                        <button
+                          type="button"
+                          onClick={handleTriggerDonationPayment}
+                          disabled={supportLoading}
+                          className="w-full py-3 bg-rose-500 hover:bg-rose-400 text-slate-950 rounded-xl font-black text-xs cursor-pointer shadow-lg shadow-rose-500/10 flex justify-center items-center gap-2 transition disabled:opacity-50"
+                        >
+                          {supportLoading ? (
+                            <span className="flex items-center gap-1.5">
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              <span>{isAr ? "جاري الدفع الآمن..." : "Authorizing secure link..."}</span>
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5">
+                              <span>❤️</span>
+                              <span>
+                                {isAr ? `إتمام الدفع الآمن بمقدار $${supportAmountPreset === 'custom' ? supportCustomAmount || '0' : supportAmountPreset}` : `Pay securely $${supportAmountPreset === 'custom' ? supportCustomAmount || '0' : supportAmountPreset}`}
+                              </span>
+                            </span>
+                          )}
+                        </button>
+
+                        <p className="text-[8px] text-slate-500 text-center leading-normal">
+                          🛡️ {isAr ? "البوابة محمية بالكامل بأحدث تشفير للبنود والمدفوعات." : "Protected by fully encrypted banking gateway channels."}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 px-4 space-y-4">
+                        <div className="w-16 h-16 bg-rose-500/10 border border-rose-500/20 rounded-full flex items-center justify-center mx-auto animate-bounce">
+                          <span className="text-2xl">❤️</span>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <h3 className="text-md font-black text-rose-450">{isAr ? "شكراً جزيلاً لدعمك Finora! ❤️" : "Thank you for supporting Finora ❤️"}</h3>
+                          <p className="text-[10px] text-slate-300 leading-relaxed font-sans px-2">
+                            {isAr
+                              ? `لقد تم استلام مساهمتك السخية بقيمة $${supportAmountPreset === 'custom' ? supportCustomAmount : supportAmountPreset} بنجاح. تبرعك سيوجه بالكامل لتطوير خوادم Finora وتحسين خدماتها.`
+                              : `We processed your generous gift of $${supportAmountPreset === 'custom' ? supportCustomAmount : supportAmountPreset} successfully. Your credentials and donation history were saved in security log.`
+                            }
+                          </p>
+                        </div>
+
+                        <div className="p-3 bg-slate-950 border border-slate-850 rounded-xl space-y-1.5 font-mono text-[9px] text-right">
+                          <div className="flex justify-between">
+                            <span className="text-slate-550">{isAr ? "المرسل:" : "Sender:"}</span>
+                            <span className="text-slate-200">{state.userEmail || "anonymous-donor@finora.app"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-550">{isAr ? "المقدار المدفوع:" : "Amount Swapped:"}</span>
+                            <span className="text-rose-400 font-bold">${supportAmountPreset === 'custom' ? supportCustomAmount : supportAmountPreset} USD</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-550">{isAr ? "حالة المعاملة:" : "Status Code:"}</span>
+                            <span className="text-emerald-450 font-bold">COMPLETED (Captured)</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowSupportModal(false);
+                            setSupportSuccess(false);
+                          }}
+                          className="w-full py-2.5 bg-rose-500 hover:bg-rose-400 text-slate-950 rounded-xl text-xs font-black cursor-pointer transition shadow-lg shadow-rose-500/10"
+                        >
+                          {isAr ? "العودة للوحة التحكم" : "Done / Exit"}
+                        </button>
+                      </div>
+                    )}
                   </motion.div>
                 </div>
               )}

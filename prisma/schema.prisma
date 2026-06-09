@@ -32,6 +32,7 @@ model User {
   notifications     Notification[]
   aiInsights        AIInsight[]
   deviceTokens      DeviceToken[]
+  donations         Donation[]
 
   @@index([email])
 }
@@ -159,6 +160,22 @@ model DeviceToken {
 
   // Relationship
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Donation {
+  id            String   @id @default(uuid())
+  userId        String?
+  amount        Float
+  currency      String   @default("USD")
+  paypalOrderId String   @unique
+  status        String   @default("completed") // "pending", "completed", "failed"
+  donorEmail    String?
+  createdAt     DateTime @default(now())
+
+  // Relationship
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
