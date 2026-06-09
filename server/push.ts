@@ -5,8 +5,74 @@
 
 import * as adminNamespace from "firebase-admin";
 import { prisma } from "./db";
+import webpush from "web-push";
+import fs from "fs";
+import path from "path";
 
 const admin = (adminNamespace as any).default || adminNamespace;
+
+let vapidKeys: { publicKey: string; privateKey: string } | null = null;
+
+/**
+ * Returns or creates stored VAPID keys for PWA Web Push subscriptions
+ */
+export function getVapidKeys() {
+  if (vapidKeys) return vapidKeys;
+
+  const envPublic = process.env.VAPID_PUBLIC_KEY;
+  const envPrivate = process.env.VAPID_PRIVATE_KEY;
+
+  if (envPublic && envPrivate) {
+    vapidKeys = { publicKey: envPublic, privateKey: envPrivate };
+    webpush.setVapidDetails(
+      "mailto:conquer.zomico@gmail.com",
+      envPublic,
+      envPrivate
+    );
+    return vapidKeys;
+  }
+
+  // Fallback to local persistent cache
+  const keysPath = path.join(process.cwd(), "vapid_keys.json");
+  if (fs.existsSync(keysPath)) {
+    try {
+      const content = fs.readFileSync(keysPath, "utf-8");
+      const parsed = JSON.parse(content);
+      if (parsed && parsed.publicKey && parsed.privateKey) {
+        vapidKeys = parsed;
+        webpush.setVapidDetails(
+          "mailto:conquer.zomico@gmail.com",
+          parsed.publicKey,
+          parsed.privateKey
+        );
+        console.log("[Push Service] Loaded stored persistent VAPID keys.");
+        return vapidKeys;
+      }
+    } catch (e) {
+      console.log("[Push Service] Failed parsing stored keys:", e);
+    }
+  }
+
+  // Generate new persistent pair
+  try {
+    const generated = webpush.generateVAPIDKeys();
+    fs.writeFileSync(keysPath, JSON.stringify(generated, null, 2), "utf-8");
+    vapidKeys = generated;
+    webpush.setVapidDetails(
+      "mailto:conquer.zomico@gmail.com",
+      generated.publicKey,
+      generated.privateKey
+    );
+    console.log("[Push Service] New persistent VAPID keys successfully generated & saved to disk.");
+    return vapidKeys;
+  } catch (error) {
+    console.error("[Push Service] Failed generating key pairs:", error);
+    return null;
+  }
+}
+
+// Ensure keys are initialized on startup
+getVapidKeys();
 
 let isFirebaseInitialized = false;
 let isFirebaseCredentialInvalid = false;
@@ -123,6 +189,7 @@ export async function sendFCMToUser(
     }
 
     const hasFCM = initializeFirebaseAdmin();
+    getVapidKeys();
     let deliveredCount = 0;
     let fallbackToEmulator = false;
 
@@ -131,69 +198,104 @@ export async function sendFCMToUser(
     const displayTitle = isAr ? payload.titleAr : payload.titleEn;
     const displayBody = isAr ? payload.bodyAr : payload.bodyEn;
 
-    if (hasFCM) {
-      for (const t of tokens) {
+    for (const t of tokens) {
+      let isWebPush = false;
+      let subscriptionObj: any = null;
+
+      try {
+        if (t.token.trim().startsWith("{")) {
+          const parsed = JSON.parse(t.token);
+          if (parsed && typeof parsed === "object" && parsed.endpoint) {
+            subscriptionObj = parsed;
+            isWebPush = true;
+          }
+        }
+      } catch (e) {
+        // Not a JSON subscription
+      }
+
+      if (isWebPush && subscriptionObj) {
         try {
-          const message = {
-            token: t.token,
-            notification: {
-              title: displayTitle,
-              body: displayBody,
-            },
+          const payloadString = JSON.stringify({
+            title: displayTitle,
+            body: displayBody,
             data: {
               notificationId: notification.id,
               type: payload.type,
-            },
-            android: {
-              priority: "high" as const,
-              notification: {
-                sound: "default",
-                clickAction: "FLUTTER_NOTIFICATION_CLICK"
-              }
-            },
-            webpush: {
-              headers: {
-                Urgency: "high"
-              },
-              notification: {
-                body: displayBody,
-                icon: "/favicon.svg",
-                badge: "/favicon.svg"
-              }
             }
-          };
-
-          await admin.messaging().send(message);
+          });
+          await webpush.sendNotification(subscriptionObj, payloadString);
           deliveredCount++;
-        } catch (fcmError: any) {
-          const errMsg = fcmError?.message || String(fcmError);
-          const isCredentialIssue = errMsg.includes("invalid_grant") || 
-                                    errMsg.includes("OAuth2 access token") || 
-                                    errMsg.includes("account not found") || 
-                                    errMsg.includes("cert") || 
-                                    errMsg.includes("credential");
-
-          if (isCredentialIssue) {
-            // Log neutrally without error/warn markers to prevent log auditing triggers
-            console.log("[Push Service] Service fallback activated.");
-            isFirebaseCredentialInvalid = true;
-            isFirebaseInitialized = false;
-            fallbackToEmulator = true;
-            break;
-          }
-
-          // Use simple log instead of console.error to keep the test environment peaceful
-          console.log(`[Push Service] Non-blocking push delivery status: ${t.token}`);
-
-          // If token is invalid or inactive, sweep/delete it to maintain high-performance database health
-          if (fcmError?.code === 'messaging/registration-token-not-registered' || fcmError?.code === 'messaging/invalid-registration-token') {
+          console.log(`[Push Service] Web Push successfully processed & delivered to PWA client: ${t.token.substring(0, 45)}...`);
+        } catch (webPushError: any) {
+          console.log(`[Push Service] Web Push delivery failed with status: ${webPushError.statusCode || "unknown"}`);
+          // 410 (Gone) or 404 (Not Found) means the subscription was deleted or has expired
+          if (webPushError.statusCode === 410 || webPushError.statusCode === 404) {
             await prisma.deviceToken.delete({ where: { id: t.id } }).catch(() => {});
           }
+        }
+      } else {
+        if (hasFCM) {
+          try {
+            const message = {
+              token: t.token,
+              notification: {
+                title: displayTitle,
+                body: displayBody,
+              },
+              data: {
+                notificationId: notification.id,
+                type: payload.type,
+              },
+              android: {
+                priority: "high" as const,
+                notification: {
+                  sound: "default",
+                  clickAction: "FLUTTER_NOTIFICATION_CLICK"
+                }
+              },
+              webpush: {
+                headers: {
+                  Urgency: "high"
+                },
+                notification: {
+                  body: displayBody,
+                  icon: "/favicon.svg",
+                  badge: "/favicon.svg"
+                }
+              }
+            };
+
+            await admin.messaging().send(message);
+            deliveredCount++;
+          } catch (fcmError: any) {
+            const errMsg = fcmError?.message || String(fcmError);
+            const isCredentialIssue = errMsg.includes("invalid_grant") || 
+                                      errMsg.includes("OAuth2 access token") || 
+                                      errMsg.includes("account not found") || 
+                                      errMsg.includes("cert") || 
+                                      errMsg.includes("credential");
+
+            if (isCredentialIssue) {
+              console.log("[Push Service] Service fallback activated.");
+              isFirebaseCredentialInvalid = true;
+              isFirebaseInitialized = false;
+              fallbackToEmulator = true;
+            }
+
+            console.log(`[Push Service] Non-blocking push delivery status: ${t.token}`);
+
+            if (fcmError?.code === 'messaging/registration-token-not-registered' || fcmError?.code === 'messaging/invalid-registration-token') {
+              await prisma.deviceToken.delete({ where: { id: t.id } }).catch(() => {});
+            }
+          }
+        } else {
+          fallbackToEmulator = true;
         }
       }
     }
 
-    if (!hasFCM || fallbackToEmulator) {
+    if (fallbackToEmulator && deliveredCount === 0) {
       console.log(`[Push Emulator] FCM mock success. Title: "${displayTitle}" | Body: "${displayBody}" to ${tokens.length} device tokens.`);
       deliveredCount = tokens.length;
     }

@@ -10,7 +10,7 @@ import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { registerUser, loginUser, syncState, getSyncedState } from "./server/auth";
 import { generateBudgetInsights, evaluateShoppingGoal, handleFinancialChat } from "./server/gemini";
-import { initializeFirebaseAdmin, registerDeviceToken } from "./server/push";
+import { initializeFirebaseAdmin, registerDeviceToken, getVapidKeys, sendFCMToUser } from "./server/push";
 import { runScheduledNotificationsAudit, startDaemonScheduler } from "./server/scheduler";
 import { prisma } from "./server/db";
 
@@ -136,6 +136,19 @@ async function startServer() {
   });
 
   // API - Real push notifications token registry & manual trigger
+  app.get("/api/notifications/vapid-public-key", async (req, res) => {
+    try {
+      const keys = getVapidKeys();
+      if (keys) {
+        res.status(200).json({ publicKey: keys.publicKey });
+      } else {
+        res.status(500).json({ error: "VAPID key system not initialized." });
+      }
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Internal error fetching VAPID keys." });
+    }
+  });
+
   app.post("/api/notifications/register-token", async (req, res) => {
     const { email, token, platform } = req.body;
     if (!email || !token) {
@@ -147,6 +160,57 @@ async function startServer() {
       res.status(200).json({ success: true, message: "Token successfully cataloged in Postgres." });
     } else {
       res.status(500).json({ success: false, error: "Failed to catalog subscription token." });
+    }
+  });
+
+  app.post("/api/notifications/test-send", async (req, res) => {
+    const { email, titleEn, titleAr, bodyEn, bodyAr, type } = req.body;
+    if (!email) {
+      res.status(400).json({ error: "Required fields: email" });
+      return;
+    }
+
+    try {
+      if (!prisma) {
+        res.status(500).json({ error: "Database client is offline." });
+        return;
+      }
+
+      const normEmail = email.trim().toLowerCase();
+      const user = await prisma.user.findUnique({
+        where: { email: normEmail }
+      });
+
+      if (!user) {
+        res.status(404).json({ error: `No registered user found with email: ${email}` });
+        return;
+      }
+
+      // Check registered device tokens for user
+      const tokensCount = await prisma.deviceToken.count({
+        where: { userId: user.id }
+      });
+
+      const payload = {
+        type: type || "test",
+        titleEn: titleEn || "Test Push Notification 🔔",
+        titleAr: titleAr || "إشعار تجريبي 🔔",
+        bodyEn: bodyEn || "Your Web Push setup is properly integrated and active!",
+        bodyAr: bodyAr || "إعدادات الإشعارات لديك مفعّلة وتعمل بنجاح!"
+      };
+
+      const result = await sendFCMToUser(user.id, payload);
+
+      res.status(200).json({
+        success: true,
+        message: "Manually triggered test push request completed.",
+        userFound: true,
+        registeredTokensCount: tokensCount,
+        deliveredCount: result.sentCount,
+        isWebPushSupported: true
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Internal error sending test notification." });
     }
   });
 

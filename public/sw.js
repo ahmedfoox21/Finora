@@ -52,3 +52,22 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(data.title, options)
   );
 });
+
+// Handle notification click to open or focus the PWA app
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  // Focus existing window or open a new one
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url && "focus" in client) {
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow("/");
+      }
+    })
+  );
+});

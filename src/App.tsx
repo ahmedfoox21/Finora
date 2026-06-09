@@ -321,6 +321,7 @@ export default function App() {
 
   const [activeGoalDetails, setActiveGoalDetails] = useState<SavingGoal | null>(null);
   const [depositAmount, setDepositAmount] = useState("");
+  const [goalsView, setGoalsView] = useState<'default' | 'all'>('default');
 
   // Search/Filters for expenses tab
   const [searchQuery, setSearchQuery] = useState("");
@@ -380,6 +381,23 @@ export default function App() {
   const isAr = state.language === "ar";
   const t = isAr ? TX.ar : TX.en;
 
+  // Active unread notification helper
+  const activeUnreadNotif = (state.notifications || []).find(n => !n.read);
+
+  const getNotifTitle = (n: SimulatedNotification) => {
+    if (n.id.startsWith("ai-tip-weekly")) {
+      return isAr ? "نصيحة اليوم لحماية مدخراتك  💡" : n.titleEn;
+    }
+    return isAr ? n.titleAr : n.titleEn;
+  };
+
+  const getNotifBody = (n: SimulatedNotification) => {
+    if (n.id.startsWith("ai-tip-weekly")) {
+      return isAr ? "احرص على تحويل جزء من راتبك إلى الادخار فور استلامه قبل البدء بالمصروفات اليومية، فهذه الطريقة تساعد على بناء مدخراتك بشكل منتظم." : n.bodyEn;
+    }
+    return isAr ? n.bodyAr : n.bodyEn;
+  };
+
   // Auto Scroll Chat
   const chatBottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -430,60 +448,89 @@ export default function App() {
     }
   };
 
-  // Request browser notification permission
-  useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      if (Notification.permission === "default") {
-        Notification.requestPermission();
-      }
+  // Helper to convert base64 VAPID public key to dynamic Uint8Array for PushManager subscription
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+      .replace(/\-/g, '+')
+      .replace(/_/g, '/');
+
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
     }
-  }, []);
+    return outputArray;
+  };
 
   // Synchronize Push Token with Neon PostgreSQL backend
   useEffect(() => {
     if (state.isLoggedIn && state.userEmail) {
       const syncToken = async () => {
-        let token = localStorage.getItem("finora_device_push_token");
-        if (!token) {
-          try {
-            if ("serviceWorker" in navigator) {
-              const reg = await navigator.serviceWorker.ready;
-              if (reg.pushManager) {
-                const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({
-                  userVisibleOnly: true,
-                  applicationServerKey: "BEl6mhc7B2D9Hy2Y-M2b07L_XW9m7Nd_V8g9XbV8T9b_9_X_8b_X9b9f7a7f7"
-                }).catch(() => null);
-                if (sub) {
-                  token = JSON.stringify(sub);
-                }
-              }
-            }
-          } catch (e) {
-            console.warn("Push subscription declined or not supported. Using persistent fallback identifier.", e);
-          }
-          
-          if (!token) {
-            token = "web-token-" + Math.random().toString(36).substring(2, 15) + "-" + Date.now();
-          }
-          localStorage.setItem("finora_device_push_token", token);
-        }
-
         try {
-          await fetch("/api/notifications/register-token", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: state.userEmail,
-              token,
-              platform: "web"
-            })
-          });
+          if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+            console.warn("Standard Web Push is not supported in this browser context.");
+            return;
+          }
+
+          const reg = await navigator.serviceWorker.ready;
+          if (!reg.pushManager) {
+            console.warn("PushManager is not available in the service worker registration.");
+            return;
+          }
+
+          // Fetch active VAPID public key dynamically from server
+          const vapidRes = await fetch("/api/notifications/vapid-public-key");
+          if (!vapidRes.ok) {
+            throw new Error("Failed to dynamically fetch active VAPID public key from backend.");
+          }
+          const { publicKey } = await vapidRes.json();
+          if (!publicKey) {
+            throw new Error("Dynamic public key empty or invalid.");
+          }
+
+          let sub = await reg.pushManager.getSubscription();
+          
+          // Request permission and subscribe if not yet subscribed
+          if (!sub && Notification.permission === "granted") {
+            const convertedKey = urlBase64ToUint8Array(publicKey);
+            sub = await reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: convertedKey
+            });
+          }
+
+          if (sub) {
+            const token = JSON.stringify(sub);
+            localStorage.setItem("finora_device_push_token", token);
+
+            await fetch("/api/notifications/register-token", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email: state.userEmail,
+                token,
+                platform: "web"
+              })
+            });
+            console.log("[Push Sync] Real Web Push subscription successfully registered & stored in PostgreSQL.");
+          }
         } catch (e) {
-          console.error("Token sync failure:", e);
+          console.error("[Push Sync] Real Web Push subscription failure:", e);
         }
       };
-      
-      syncToken();
+
+      // Handle the permission request and immediately sync
+      if (Notification.permission === "default") {
+        Notification.requestPermission().then((perm) => {
+          if (perm === "granted") {
+            syncToken();
+          }
+        });
+      } else if (Notification.permission === "granted") {
+        syncToken();
+      }
     }
   }, [state.isLoggedIn, state.userEmail]);
 
@@ -797,9 +844,9 @@ export default function App() {
     // --- USE CASE 5: AI financial advice periodic service ---
     const adviceKey = `ai-tip-weekly-${new Date().getFullYear()}-w${Math.ceil(new Date().getDate() / 7)}`;
     if (!updatedNotifs.some(n => n.id === adviceKey)) {
-      const tar = "نصيحة Finora الذكية لحماية مدخراتك 💡";
+      const tar = "نصيحة اليوم لحماية مدخراتك 💡";
       const ten = "Finora Smart Tip: Empower Your Surplus 💡";
-      const bar = "حاول دائمًا توفير فائض الراتب في اليوم الموالي لاستلامه مباشرة في ظرف الادخار لتجنب النفقات غير واعية.";
+      const bar = "احرص على تحويل جزء من راتبك إلى الادخار فور استلامه قبل البدء بالمصروفات اليومية، فهذه الطريقة تساعد على بناء مدخراتك بشكل منتظم.";
       const ben = "Try direct saving allocations out of your salary on payday morning to block emotional spending cycles.";
 
       updatedNotifs.unshift({
@@ -888,6 +935,13 @@ export default function App() {
     // Daily allocated safe budget limit
     const dailyDisposableAllocation = Math.round((remainingWalletBalance / daysRemaining) * 10) / 10;
 
+    const originalSalary = salary;
+    const totalExpenses = totalDynamicExpensesThisMonth + directFixedLiabilities;
+    const remainingBalance = originalSalary - totalExpenses;
+    const goalAllocation = (state.goals || []).reduce((acc, g) => acc + Number(g.savedAmount || 0), 0);
+    const totalSavedAmount = goalAllocation;
+    const spendingPercentage = originalSalary > 0 ? Math.min(100, Math.round((totalExpenses / originalSalary) * 100)) : 0;
+
     return {
       grossMonthlyRevenue,
       directFixedLiabilities,
@@ -897,7 +951,13 @@ export default function App() {
       dailyDisposableAllocation,
       totalFixedOutlays,
       totalLentPending,
-      totalLentRecovered
+      totalLentRecovered,
+      originalSalary,
+      totalExpenses,
+      remainingBalance,
+      goalAllocation,
+      totalSavedAmount,
+      spendingPercentage
     };
   }, [state]);
 
@@ -1385,20 +1445,24 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                 )}
 
                 {setupStep === 2 && (
-                  <div className="my-auto space-y-2.5">
+                  <div className="my-auto space-y-3 text-center">
                     <div className="space-y-0.5">
                       <h3 className="text-md font-bold text-white">{t.salaryDayInput}</h3>
                       <p className="text-[10px] text-slate-400 leading-relaxed font-sans">{isAr ? "نحدد هذا التاريخ لحساب فترات الدورة المالية." : "Expected date of depositing payroll to calibrate month intervals."}</p>
                     </div>
-                    <input
-                      type="number"
-                      min="1"
-                      max="31"
-                      value={wizardSalaryDay || ""}
-                      onChange={(e) => setWizardSalaryDay(Math.min(31, Math.max(1, Number(e.target.value))))}
-                      className="w-full text-center text-xl font-bold bg-slate-900 border border-slate-800 rounded-xl py-2 text-emerald-400 outline-none focus:border-emerald-500 font-mono shadow-inner shadow-black/40"
-                      placeholder="25"
-                    />
+                    <div className="w-32 mx-auto">
+                      <select
+                        value={wizardSalaryDay || 25}
+                        onChange={(e) => setWizardSalaryDay(Number(e.target.value))}
+                        className="w-full text-center text-lg font-mono font-bold bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-emerald-400 outline-none focus:border-emerald-500 shadow-inner shadow-black/40 cursor-pointer"
+                      >
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                          <option key={day} value={day} className="bg-slate-950 text-white font-mono">
+                            {day}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 )}
 
@@ -1626,41 +1690,44 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
         {state.isSetupCompleted && !isPinScreenActive && (
           <div className="flex-1 flex flex-col justify-between overflow-hidden bg-slate-950 relative h-full">
             
-            <AnimatePresence>
-              {state.notifications.some(n => !n.read) && (
-                <div id="inline-notification-toast" className="absolute top-2 inset-x-3 bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-slate-100 z-50 shadow-lg">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-emerald-400 shrink-0" />
-                      <div>
-                        <h4 className="text-[10px] font-bold text-white">
-                          {isAr ? state.notifications[0].titleAr : state.notifications[0].titleEn}
-                        </h4>
-                        <p className="text-[8px] text-slate-400 mt-0.5 leading-normal">
-                          {isAr ? state.notifications[0].bodyAr : state.notifications[0].bodyEn}
-                        </p>
+            <div className={`flex-grow ${activeTab === 'coach' ? 'flex flex-col overflow-hidden pb-14' : 'overflow-y-auto pb-20 space-y-2.5'} px-3 pt-2.5 relative`}>
+              
+              <AnimatePresence>
+                {activeUnreadNotif && (
+                  <div 
+                    id="inline-notification-toast" 
+                    className="relative w-full bg-slate-900 border border-slate-800 p-3 rounded-2xl text-slate-100 z-30 shadow-lg mb-3 animate-in fade-in zoom-in duration-200"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-emerald-400 shrink-0" />
+                        <div>
+                          <h4 className="text-[10px] font-bold text-white">
+                            {getNotifTitle(activeUnreadNotif)}
+                          </h4>
+                          <p className="text-[8.5px] text-slate-400 mt-1 leading-relaxed">
+                            {getNotifBody(activeUnreadNotif)}
+                          </p>
+                        </div>
                       </div>
                     </div>
+                    <div className="flex gap-2 mt-2 justify-end text-[8.5px] font-bold">
+                      <button
+                        onClick={() => handleNotificationAction(activeUnreadNotif, 'dont_remember')}
+                        className="px-2.5 py-1 bg-slate-950 text-slate-400 border border-slate-850 rounded-lg hover:border-slate-750 transition cursor-pointer"
+                      >
+                        {isAr ? "لا أتذكر 🤔" : "Don't remember"}
+                      </button>
+                      <button
+                        onClick={() => handleNotificationAction(activeUnreadNotif, 'total_only')}
+                        className="px-2.5 py-1 bg-emerald-500 text-slate-950 rounded-lg hover:bg-emerald-450 transition cursor-pointer"
+                      >
+                        {isAr ? "تسجيل سريع" : "Quick log"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2 mt-1.5 justify-end text-[8px] font-bold">
-                    <button
-                      onClick={() => handleNotificationAction(state.notifications[0], 'dont_remember')}
-                      className="px-2 py-0.5 bg-slate-950 text-slate-400 border border-slate-850 rounded"
-                    >
-                      {isAr ? "لا أتذكر 🤔" : "Don't remember"}
-                    </button>
-                    <button
-                      onClick={() => handleNotificationAction(state.notifications[0], 'total_only')}
-                      className="px-2 py-0.5 bg-emerald-400 text-slate-950 rounded"
-                    >
-                      {isAr ? "تسجيل سريع" : "Quick log"}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </AnimatePresence>
-
-            <div className={`flex-grow ${activeTab === 'coach' ? 'flex flex-col overflow-hidden pb-14' : 'overflow-y-auto pb-20 space-y-2.5'} px-3 pt-2.5 relative`}>
+                )}
+              </AnimatePresence>
               
                {/* ==================== TAB 1: HOME ==================== */}
               {activeTab === 'home' && (
@@ -1721,6 +1788,59 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                       </p>
                     </div>
                   )}
+
+                  {/* 📊 Financial Overview (ملخص الحالة) */}
+                  <div className="bg-slate-900 border border-slate-850 rounded-2xl p-3.5 space-y-3 shadow-md shadow-black/10">
+                    <div className="flex justify-between items-center border-b border-slate-850 pb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="text-[10px] font-black text-white uppercase tracking-wider">
+                          {isAr ? "📊 ملخص الحالة المالية" : "📊 Financial Overview"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-center py-2 bg-slate-955 rounded-xl border border-slate-850/40">
+                      <p className="text-[8px] text-slate-400 font-semibold mb-0.5 uppercase tracking-wider">
+                        {isAr ? "🟢 الرصيد المتبقي" : "🟢 Remaining Balance"}
+                      </p>
+                      <h3 className="text-lg font-black text-emerald-400 font-mono tracking-tight my-0.5">
+                        {m.remainingBalance} <span className="text-[9px] text-emerald-500 font-sans">{t.currency}</span>
+                      </h3>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[9.5px] font-sans">
+                      <div className="bg-slate-950/30 p-2 rounded-lg border border-slate-850/40 flex justify-between items-center">
+                        <span className="text-slate-400">{isAr ? "💰 الراتب الأساسي" : "💰 Salary"}</span>
+                        <span className="font-bold text-white font-mono">{m.originalSalary} {t.currency}</span>
+                      </div>
+                      <div className="bg-slate-950/30 p-2 rounded-lg border border-slate-850/40 flex justify-between items-center">
+                        <span className="text-slate-400">{isAr ? "💸 إجمالي المصروفات" : "💸 Expenses"}</span>
+                        <span className="font-bold text-rose-500 font-mono">{m.totalExpenses} {t.currency}</span>
+                      </div>
+                      <div className="bg-slate-950/30 p-2 rounded-lg border border-slate-850/40 flex justify-between items-center">
+                        <span className="text-slate-400">{isAr ? "🎯 المخصص للأهداف" : "🎯 Goal Allocation"}</span>
+                        <span className="font-bold text-emerald-400 font-mono">{m.goalAllocation} {t.currency}</span>
+                      </div>
+                      <div className="bg-slate-950/30 p-2 rounded-lg border border-slate-850/40 flex justify-between items-center">
+                        <span className="text-slate-400">{isAr ? "🏦 إجمالي المدخرات" : "🏦 Total Saved Amount"}</span>
+                        <span className="font-bold text-emerald-400 font-mono">{m.totalSavedAmount} {t.currency}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 pt-1.5 border-t border-slate-850">
+                      <div className="flex justify-between items-center text-[9px]">
+                        <span className="text-slate-450 font-sans">{isAr ? "نسبة الاستهلاك" : "Spending Percentage"}</span>
+                        <span className="font-bold text-emerald-400 font-mono">{m.spendingPercentage}% {isAr ? "مستهلك" : "Spent"}</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-955 w-full rounded-full overflow-hidden border border-slate-850/30">
+                        <div 
+                          className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500" 
+                          style={{ width: `${m.spendingPercentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Borrowed Money Card (Owed to Me) */}
                   <div className="bg-slate-900 border border-slate-850 rounded-lg p-2.5 space-y-2 shadow-sm">
@@ -1844,11 +1964,11 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                     <select
                       value={selectedCategoryFilter}
                       onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                      className="bg-slate-900 border border-slate-850 rounded-lg text-[9px] px-2 outline-none text-slate-300 font-semibold cursor-pointer font-sans"
+                      className="bg-slate-905 border border-slate-855 rounded-lg text-[9px] px-2 outline-none text-slate-300 font-semibold cursor-pointer font-sans"
                     >
                       <option value="All">{isAr ? "جميع الفئات" : "All Categories"}</option>
                       {Object.keys(t.categories).map(catKey => (
-                        <option key={catKey} value={catKey}>{t.categories[catKey as keyof typeof t.categories]}</option>
+                        <option key={catKey} value={catKey}>{t.categories[catKey as keyof typeof t.categories] || catKey}</option>
                       ))}
                     </select>
                   </div>
@@ -1860,7 +1980,7 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                         className="flex items-center justify-between p-2.5 bg-slate-900 border border-slate-850 rounded-xl text-xs"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-base">🍔</span>
+                          <span className="text-base">💸</span>
                           <div>
                             <p className="font-bold text-white text-[10px]">
                               {t.categories[exp.category as keyof typeof t.categories] || exp.category}
@@ -1889,88 +2009,182 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
               {/* ==================== TAB 3: GOALS ==================== */}
               {activeTab === 'goals' && (
                 <div id="goals-savings-view" className="space-y-3.5">
-                  <div className="flex justify-between items-center text-xs font-bold text-white">
-                    <h3>{t.activeGoals}</h3>
-                  </div>
-
-                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-850 space-y-2">
-                    <input
-                      type="text"
-                      placeholder={isAr ? "اسم الهدف المطلوب (أبل ماك بوك، سفر...)" : "Goal item (e.g. iPad Pro)"}
-                      value={tempGoalName}
-                      onChange={(e) => setTempGoalName(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-850 rounded-lg py-1.5 px-3 text-[10px] text-white outline-none font-sans"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="number"
-                        placeholder={isAr ? "سعر التجزئة" : "Retail price"}
-                        value={tempGoalPrice}
-                        onChange={(e) => setTempGoalPrice(e.target.value)}
-                        className="bg-slate-950 border border-slate-850 rounded-lg py-1.5 px-3 text-[10px] text-white outline-none font-mono"
-                      />
-                      <input
-                        type="date"
-                        value={tempGoalDate}
-                        onChange={(e) => setTempGoalDate(e.target.value)}
-                        className="bg-slate-950 border border-slate-850 rounded-lg py-1.5 px-3 text-[10px] text-slate-400 outline-none font-sans"
-                      />
-                    </div>
-                    <button
-                      onClick={async () => {
-                        if (!tempGoalName || !tempGoalPrice) return;
-                        const final: SavingGoal = {
-                          id: "goal-" + Date.now(),
-                          name: tempGoalName,
-                          targetAmount: Number(tempGoalPrice),
-                          savedAmount: 0,
-                          targetDate: tempGoalDate || new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-                        };
-                        setState(prev => ({ ...prev, goals: [...prev.goals, final] }));
-                        setTempGoalName("");
-                        setTempGoalPrice("");
-                        setTempGoalDate("");
-                      }}
-                      className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black rounded-lg cursor-pointer transition font-sans"
-                    >
-                      + {isAr ? "إنشاء هدف الادخار الجديد" : "Create Saving Target"}
-                    </button>
-                  </div>
-
-                  <div className="space-y-2.5">
-                    {state.goals.map((goal) => {
-                      const completedPct = Math.min(100, Math.round((goal.savedAmount / goal.targetAmount) * 100)) || 0;
-                      return (
-                        <div
-                          key={goal.id}
-                          onClick={() => setActiveGoalDetails(goal)}
-                          className="bg-slate-900 border border-slate-850 rounded-xl p-3 hover:border-emerald-500/20 cursor-pointer space-y-2 transition duration-200 active:scale-98"
+                  {goalsView === 'all' ? (
+                    // ==================== SUBVIEW: GOALS OVERVIEW ====================
+                    <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
+                      <div className="flex items-center justify-between border-b border-slate-850 pb-2">
+                        <button
+                          onClick={() => setGoalsView('default')}
+                          className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white cursor-pointer"
                         >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h4 className="font-bold text-[11px] text-white">{goal.name}</h4>
-                              <p className="text-[8px] text-slate-500 font-sans">{t.goalPrice}: {goal.targetAmount} {t.currency}</p>
+                          <ArrowLeft className={`h-3.5 w-3.5 ${isAr ? 'rotate-180' : ''}`} />
+                          <span>{isAr ? "رجوع" : "Back"}</span>
+                        </button>
+                        <h3 className="text-xs font-bold text-white">{isAr ? "ملخص شامل للأهداف" : "Goals Comprehensive Overview"}</h3>
+                        <div className="w-10"></div>
+                      </div>
+
+                      <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                        {state.goals.map((goal) => {
+                          const completedPct = Math.min(100, Math.round((goal.savedAmount / goal.targetAmount) * 100)) || 0;
+                          return (
+                            <div
+                              key={goal.id}
+                              onClick={() => {
+                                setActiveGoalDetails(goal);
+                              }}
+                              className="bg-slate-900 border border-slate-850 hover:border-emerald-500/30 rounded-2xl p-4 cursor-pointer space-y-3 transition duration-200 shadow-sm relative overflow-hidden"
+                            >
+                              {goal.imageUrl && (
+                                <div className="absolute right-0 top-0 h-full w-24 opacity-10 pointer-events-none">
+                                  <img src={goal.imageUrl} alt="" className="h-full w-full object-cover" />
+                                </div>
+                              )}
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <h4 className="font-bold text-[12px] text-white flex items-center gap-1.5">
+                                    <PiggyBank className="h-4 w-4 text-emerald-400 shrink-0" />
+                                    {goal.name}
+                                  </h4>
+                                  <p className="text-[9px] text-slate-400 font-sans mt-0.5">
+                                    {isAr ? "تاريخ التحقيق المأمول:" : "Target Date:"} {goal.targetDate || "N/A"}
+                                  </p>
+                                </div>
+                                <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                  {completedPct}%
+                                </span>
+                              </div>
+
+                              <div className="h-1.5 bg-slate-950 w-full rounded-full overflow-hidden border border-slate-800">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-300" 
+                                  style={{ width: `${completedPct}%` }}
+                                ></div>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-2 text-[9px] font-mono pt-1 text-slate-350">
+                                <div className="bg-slate-950/40 p-1.5 rounded-lg border border-slate-850 text-center">
+                                  <p className="text-[7.5px] text-slate-500 mb-0.5">{isAr ? "الهدف" : "Target"}</p>
+                                  <p className="font-bold text-white">{goal.targetAmount} {t.currency}</p>
+                                </div>
+                                <div className="bg-slate-950/40 p-1.5 rounded-lg border border-slate-850 text-center">
+                                  <p className="text-[7.5px] text-slate-500 mb-0.5">{isAr ? "المدخر" : "Saved"}</p>
+                                  <p className="font-bold text-emerald-400">{goal.savedAmount} {t.currency}</p>
+                                </div>
+                                <div className="bg-slate-950/40 p-1.5 rounded-lg border border-slate-850 text-center">
+                                  <p className="text-[7.5px] text-slate-500 mb-0.5">{isAr ? "المتبقي" : "Remaining"}</p>
+                                  <p className="font-bold text-rose-500">{goal.targetAmount - goal.savedAmount} {t.currency}</p>
+                                </div>
+                              </div>
                             </div>
-                            <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-550/10 px-1.5 py-0.5 rounded-full">
-                              {completedPct}%
-                            </span>
-                          </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    // ==================== SUBVIEW: DEFAULT GOALS VIEW ====================
+                    <div className="space-y-3.5 animate-in fade-in slide-in-from-right-4 duration-300">
+                      
+                      {/* 🎯 Section Title & View All */}
+                      <div className="flex justify-between items-center text-xs font-bold text-white">
+                        <h3 className="flex items-center gap-1.5">
+                          <span>🎯</span>
+                          <span>{isAr ? "حالة الأهداف" : "Saving Targets"}</span>
+                        </h3>
+                        {state.goals.length > 0 && (
+                          <button
+                            onClick={() => setGoalsView('all')}
+                            className="text-[10px] text-emerald-400 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                          >
+                            <span>{isAr ? "عرض الكل" : "View All"}</span>
+                            <ChevronRight className={`h-3 w-3 ${isAr ? 'rotate-180' : ''}`} />
+                          </button>
+                        )}
+                      </div>
 
-                          <div className="h-1.5 bg-slate-950 w-full rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${completedPct}%` }}></div>
-                          </div>
+                      {/* Create Goal Form */}
+                      <div className="bg-slate-900 border border-slate-850 p-3.5 rounded-2xl space-y-2">
+                        <h4 className="text-[10px] font-bold text-white uppercase tracking-wider">{isAr ? "🎯 هدف ادخار جديد" : "🎯 New Saving Target"}</h4>
+                        <input
+                          type="text"
+                          placeholder={isAr ? "اسم السلعة (أيفون، حاسوب، رحلة...)" : "Goal item (e.g. laptop...)"}
+                          value={tempGoalName}
+                          onChange={(e) => setTempGoalName(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-850 rounded-lg py-1.5 px-3 text-[10px] text-white outline-none font-sans"
+                        />
 
-                          <div className="flex justify-between items-center text-[8px] pt-0.5 text-slate-450 font-mono">
-                            <span>{isAr ? "المدخر حالياً:" : "Saved:"} {goal.savedAmount} {t.currency}</span>
-                            <span>{isAr ? "المتبقي:" : "Left:"} {goal.targetAmount - goal.savedAmount} {t.currency}</span>
-                          </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="number"
+                            placeholder={isAr ? "سعر التجزئة" : "Retail price"}
+                            value={tempGoalPrice}
+                            onChange={(e) => setTempGoalPrice(e.target.value)}
+                            className="bg-slate-950 border border-slate-850 rounded-lg py-1.5 px-3 text-[10px] text-white outline-none font-mono"
+                          />
+                          <input
+                            type="date"
+                            value={tempGoalDate}
+                            onChange={(e) => setTempGoalDate(e.target.value)}
+                            className="bg-slate-950 border border-slate-850 rounded-lg py-1.5 px-3 text-[10px] text-slate-400 outline-none font-sans"
+                          />
                         </div>
-                      );
-                    })}
-                    {state.goals.length === 0 && (
-                      <p className="text-center text-[10px] text-slate-600 italic py-10">{t.emptyGoals}</p>
-                    )}
-                  </div>
+                        <button
+                          onClick={async () => {
+                            if (!tempGoalName || !tempGoalPrice) return;
+                            const final: SavingGoal = {
+                              id: "goal-" + Date.now(),
+                              name: tempGoalName,
+                              targetAmount: Number(tempGoalPrice),
+                              savedAmount: 0,
+                              targetDate: tempGoalDate || new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                            };
+                            setState(prev => ({ ...prev, goals: [...prev.goals, final] }));
+                            setTempGoalName("");
+                            setTempGoalPrice("");
+                            setTempGoalDate("");
+                          }}
+                          className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black rounded-lg cursor-pointer transition font-sans"
+                        >
+                          + {isAr ? "إنشاء هدف الادخار الجديد" : "Create Saving Target"}
+                        </button>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {state.goals.map((goal) => {
+                          const completedPct = Math.min(100, Math.round((goal.savedAmount / goal.targetAmount) * 100)) || 0;
+                          return (
+                            <div
+                              key={goal.id}
+                              onClick={() => setActiveGoalDetails(goal)}
+                              className="bg-slate-900 border border-slate-850 rounded-xl p-3 hover:border-emerald-500/20 cursor-pointer space-y-2 transition duration-200 active:scale-98"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <h4 className="font-bold text-[11px] text-white">{goal.name}</h4>
+                                  <p className="text-[8px] text-slate-500 font-sans">{t.goalPrice}: {goal.targetAmount} {t.currency}</p>
+                                </div>
+                                <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-555/10 px-1.5 py-0.5 rounded-full">
+                                  {completedPct}%
+                                </span>
+                              </div>
+
+                              <div className="h-1.5 bg-slate-950 w-full rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${completedPct}%` }}></div>
+                              </div>
+
+                              <div className="flex justify-between items-center text-[8px] pt-0.5 text-slate-450 font-mono">
+                                <span>{isAr ? "المدخر حالياً:" : "Saved:"} {goal.savedAmount} {t.currency}</span>
+                                <span>{isAr ? "المتبقي:" : "Left:"} {goal.targetAmount - goal.savedAmount} {t.currency}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {state.goals.length === 0 && (
+                          <p className="text-center text-[10px] text-slate-600 italic py-10">{t.emptyGoals}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2176,96 +2390,8 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                     <p className="text-[8px] text-emerald-400 font-mono tracking-widest uppercase mb-1">Ahmed Fox • Finora Architect</p>
                   </div>
 
-                  {/* Mock recurring bills parser suggestions under profile */}
-                  {detectedBills.length > 0 && (
-                    <div className="p-3.5 bg-emerald-950/50 border border-emerald-500/30 rounded-2xl space-y-2">
-                      <span className="text-[10px] font-bold text-white">{isAr ? "رصد اشتراك ثابت منسي 👀" : "Detected Forgotten Bill Candidate"}</span>
-                      {detectedBills.map((b, i) => (
-                        <div key={i} className="flex justify-between items-center text-xs bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
-                          <div>
-                            <p className="font-bold text-slate-100">{b.name}</p>
-                            <span className="text-[9px] text-slate-500 font-mono">{isAr ? "قيمة مقدرة:" : "Est:"} {b.estimatedAmount} {t.currency}</span>
-                          </div>
-                          <button
-                            onClick={() => handleAcceptDetectedBill(b)}
-                            className="py-1 px-2.5 bg-emerald-500 text-slate-950 text-[9px] font-bold rounded"
-                          >
-                            {isAr ? "اعتماده واضافته" : "Add recurring"}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
                 </div>
               )}
-
-            </div>
-
-            {/* 2. FLOATING RECORD QUICK SHEET INPUT MODAL */}
-            <AnimatePresence>
-              {showAddModal && (
-                <div id="add-modal-overlay" className="absolute inset-0 bg-black/60 z-50 flex flex-col justify-end">
-                  <motion.div
-                    initial={{ y: 250, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: 250, opacity: 0 }}
-                    className="bg-slate-900 border-t border-slate-800 rounded-t-[32px] p-6 space-y-4 shadow-xl"
-                  >
-                    <div className="flex justify-between items-center border-b border-slate-850 pb-3">
-                      <h4 className="text-sm font-bold text-white">{t.quickAddPrompt}</h4>
-                      <button onClick={() => setShowAddModal(false)} className="text-slate-500 hover:text-slate-350 text-xs">✕</button>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-[10px] text-slate-500 mb-1">{isAr ? "مبلغ المصروف" : "Expense Amount"}</label>
-                        <input
-                          type="number"
-                          autoFocus
-                          value={addAmount}
-                          onChange={(e) => setAddAmount(e.target.value)}
-                          className="w-full text-2xl font-bold bg-slate-950 border border-slate-850 text-emerald-400 rounded-xl py-3 px-3 outline-none font-mono"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] text-slate-505 mb-1">{isAr ? "الفئة الكلية" : "Category"}</label>
-                        <select
-                          value={addCategory}
-                          onChange={(e) => setAddCategory(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2 px-3 text-xs text-white outline-none cursor-pointer"
-                        >
-                          {Object.keys(t.categories).map(catKey => (
-                            <option key={catKey} value={catKey}>{t.categories[catKey as keyof typeof t.categories]}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] text-slate-505 mb-1">{isAr ? "ملاحظة / تفاصيل" : "Note / Details"}</label>
-                        <input
-                          type="text"
-                          placeholder="مثال: ستاربكس، بقالة..."
-                          value={addNote}
-                          onChange={(e) => setAddNote(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2 px-3 text-xs text-white outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={handleLogManualExpense}
-                      className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-bold text-xs cursor-pointer"
-                    >
-                      {t.saveAndLog}
-                    </button>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-
-            {/* 3. SAVINGS GOAL DETAILED DETAIL MODAL */}
             <AnimatePresence>
               {activeGoalDetails && (
                 <div id="goal-details-overlay" className="absolute inset-0 bg-black/60 z-50 flex flex-col justify-end">
@@ -2415,6 +2541,91 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                   </motion.div>
                 </div>
               )}
+
+              {/* EXPENSE LOGGING DIRECT FAST TRANSACTIONS MODAL OVERLAY */}
+              {showAddModal && (
+                <div id="expense-modal-overlay" className="absolute inset-0 bg-black/60 z-50 flex flex-col justify-end">
+                  <motion.div
+                    initial={{ y: 250, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 250, opacity: 0 }}
+                    className="bg-slate-900 border-t border-slate-800 rounded-t-[32px] p-6 space-y-4 shadow-xl text-right animate-in fade-in slide-in-from-bottom-5 duration-350"
+                  >
+                    <div className="flex justify-between items-center border-b border-slate-850 pb-3">
+                      <h4 className="text-sm font-bold text-white">
+                        {isAr ? "💸 تسجيل مصروف جديد في ثانية" : "💸 Log Daily Expense in a Second"}
+                      </h4>
+                      <button onClick={() => setShowAddModal(false)} className="text-slate-500 hover:text-slate-350 text-xs">✕</button>
+                    </div>
+
+                    <div className="space-y-3.5 text-xs text-right">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-1">
+                          {isAr ? "مبلغ المصروف (درهم)" : "Expense Amount (AED)"}
+                        </label>
+                        <input
+                          id="expense-amount-input"
+                          type="number"
+                          placeholder="0.00"
+                          value={addAmount}
+                          onChange={(e) => setAddAmount(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2 px-3 text-xs text-white text-right outline-none focus:border-emerald-500 font-mono font-bold"
+                          autoFocus
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-1">
+                          {isAr ? "فئة المصروف" : "Expense Category"}
+                        </label>
+                        <select
+                          id="expense-category-select"
+                          value={addCategory}
+                          onChange={(e) => setAddCategory(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2.5 px-3 text-xs text-slate-200 text-right outline-none focus:border-emerald-500 cursor-pointer font-sans"
+                        >
+                          {Object.keys(t.categories).map((catKey) => (
+                            <option key={catKey} value={catKey}>
+                              {t.categories[catKey as keyof typeof t.categories] || catKey}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-1">
+                          {isAr ? "تفاصيل إضافية (اختياري)" : "Additional Notes (Optional)"}
+                        </label>
+                        <input
+                          id="expense-note-input"
+                          type="text"
+                          placeholder={isAr ? "مثال: غداء عمل، قهوة الصباح..." : "e.g. business lunch, morning coffee..."}
+                          value={addNote}
+                          onChange={(e) => setAddNote(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2 px-3 text-xs text-white text-right outline-none focus:border-emerald-500 font-sans"
+                        />
+                      </div>
+
+                      <div className="flex gap-2.5 pt-2">
+                        <button
+                          id="expense-cancel-btn"
+                          onClick={() => setShowAddModal(false)}
+                          className="flex-1 py-2.5 bg-slate-800 text-slate-300 rounded-xl font-bold text-xs cursor-pointer"
+                        >
+                          {t.cancel}
+                        </button>
+                        <button
+                          id="expense-submit-btn"
+                          onClick={handleLogManualExpense}
+                          className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-bold text-xs cursor-pointer"
+                        >
+                          {isAr ? "تسجيل المشتريات" : "Log Expense"}
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
              </AnimatePresence>
 
             {/* FLOATING TRANSIT FAST TRANSIT RECORD LOGGING ACTION (+) */}
@@ -2427,6 +2638,8 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                 <Plus className="h-6 w-6" />
               </button>
             )}
+
+            </div>
 
             {/* 4. EXQUISITE BOTTOM SMART NAVIGATION BAR */}
             <nav id="bottom-navigation-rack" className="absolute bottom-0 inset-x-0 h-16 bg-slate-950 border-t border-slate-850 flex justify-around items-center px-4 pt-1 z-40">
