@@ -5,6 +5,7 @@
 
 import express from "express";
 import path from "path";
+import fs from "fs";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { registerUser, loginUser, syncState, getSyncedState } from "./server/auth";
@@ -195,9 +196,38 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    // In production, server.cjs is located in 'dist/'. Thus __dirname points to 'dist'.
+    // We also fallback to process.cwd()/dist if needed.
+    let distPath = path.resolve(__dirname);
+    if (!fs.existsSync(path.join(distPath, "index.html"))) {
+      distPath = path.join(process.cwd(), "dist");
+    }
+
+    // Serve static files from 'dist' folder
     app.use(express.static(distPath));
+
+    // Fallback SPA routing - exclude assets and statutory static files from wildcard matching to prevent text/html MIME type errors
     app.get("*", (req, res) => {
+      const isStaticAsset = 
+        req.path.startsWith("/assets/") || 
+        req.path.startsWith("/api/") ||
+        req.path.endsWith(".js") || 
+        req.path.endsWith(".css") || 
+        req.path.endsWith(".svg") || 
+        req.path.endsWith(".png") || 
+        req.path.endsWith(".jpg") || 
+        req.path.endsWith(".jpeg") || 
+        req.path.endsWith(".gif") || 
+        req.path.endsWith(".json") || 
+        req.path.endsWith(".ico") || 
+        req.path === "/sw.js" || 
+        req.path === "/favicon.ico" || 
+        req.path === "/manifest.json";
+
+      if (isStaticAsset) {
+        return res.status(404).send("Not Found");
+      }
+      
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
