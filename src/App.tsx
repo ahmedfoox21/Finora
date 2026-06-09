@@ -347,7 +347,7 @@ export default function App() {
   const [activeLentRecord, setActiveLentRecord] = useState<BorrowRecord | null>(null);
   const [recoverAmount, setRecoverAmount] = useState("");
 
-  // Goal addition form in Wizard
+  // Goal adding form in Wizard
   const [tempGoalName, setTempGoalName] = useState("");
   const [tempGoalPrice, setTempGoalPrice] = useState("");
   const [tempGoalDate, setTempGoalDate] = useState("");
@@ -507,7 +507,7 @@ export default function App() {
             new Notification(title, { body, icon: "/favicon.svg" });
           }
         } catch (e) {
-          console.warn("Unable to trigger service worker notification", e);
+          console.warn("Unable to service worker notification", e);
         }
       }
     }
@@ -1226,8 +1226,8 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
   };
 
   return (
-    <div className="w-full min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center select-none overflow-hidden font-sans" style={{ fontFamily: "'Cairo', sans-serif" }}>
-      <div className="w-full h-full min-h-screen md:h-[844px] md:min-h-[844px] md:max-w-md bg-slate-950 flex flex-col justify-between overflow-hidden relative md:border md:border-slate-900 md:shadow-2xl md:rounded-[40px] origin-center">
+    <div className="w-full h-[100dvh] md:min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center select-none overflow-hidden font-sans" style={{ fontFamily: "'Cairo', sans-serif" }}>
+      <div className="w-full h-full md:h-[90vh] md:max-h-[880px] md:min-h-[640px] md:max-w-md bg-slate-950 flex flex-col justify-between overflow-hidden relative md:border md:border-slate-800 md:shadow-2xl md:rounded-[40px] origin-center">
         
         {/* PIN SECURITY SCREEN BLOCK */}
         {isPinScreenActive && (
@@ -1302,23 +1302,23 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
 
         {/* ONBOARDING & SETUP STEPS BAR */}
         {!state.isSetupCompleted && !isPinScreenActive && (
-          <div className="flex-1 flex flex-col justify-between p-6 bg-slate-950 relative h-full">
+          <div className="flex-1 flex flex-col justify-between p-4.5 bg-slate-950 relative h-full">
             {onboardingIndex < 5 ? (
-              <div className="flex-1 flex flex-col justify-between my-auto h-full py-4">
-                <div className="my-auto space-y-6 text-center">
-                  <div className="w-18 h-18 bg-emerald-500/10 border border-emerald-500/20 rounded-[24px] mx-auto flex items-center justify-center shadow-md">
-                    {onboardingIndex === 0 && <Wallet className="h-9 w-9 text-emerald-400" />}
-                    {onboardingIndex === 1 && <TrendingUp className="h-9 w-9 text-emerald-400" />}
-                    {onboardingIndex === 2 && <PiggyBank className="h-9 w-9 text-emerald-400" />}
-                    {onboardingIndex === 3 && <Sparkles className="h-9 w-9 text-emerald-400" />}
-                    {onboardingIndex === 4 && <Bot className="h-9 w-9 text-emerald-400" />}
+              <div className="flex-1 flex flex-col justify-between my-auto h-full py-3">
+                <div className="my-auto space-y-4 text-center">
+                  <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/20 rounded-[18px] mx-auto flex items-center justify-center shadow-md">
+                    {onboardingIndex === 0 && <Wallet className="h-6 w-6 text-emerald-400" />}
+                    {onboardingIndex === 1 && <TrendingUp className="h-6 w-6 text-emerald-400" />}
+                    {onboardingIndex === 2 && <PiggyBank className="h-6 w-6 text-emerald-400" />}
+                    {onboardingIndex === 3 && <Sparkles className="h-6 w-6 text-emerald-400" />}
+                    {onboardingIndex === 4 && <Bot className="h-6 w-6 text-emerald-400" />}
                   </div>
 
-                  <div className="space-y-3 px-2">
-                    <h2 className="text-xl font-black text-white leading-tight">
+                  <div className="space-y-2 px-1">
+                    <h2 className="text-lg font-black text-white leading-tight">
                       {t.onboarding[onboardingIndex]?.title}
                     </h2>
-                    <p className="text-[11px] text-slate-400 leading-relaxed font-sans px-3">
+                    <p className="text-[10.5px] text-slate-400 leading-relaxed font-sans px-2">
                       {t.onboarding[onboardingIndex]?.desc}
                     </p>
                   </div>
@@ -1369,8 +1369,8 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                 </div>
 
                 {setupStep === 1 && (
-                  <div className="my-auto space-y-4">
-                    <div className="space-y-1">
+                  <div className="my-auto space-y-2.5">
+                    <div className="space-y-0.5">
                       <h3 className="text-md font-bold text-white">{t.salaryInput}</h3>
                       <p className="text-[10px] text-slate-400 leading-relaxed font-sans">{isAr ? "هذا الدخل الأساسي المعتمد لبناء خطتك." : "This base is used to draft your daily secure spending thresholds."}</p>
                     </div>
@@ -1378,15 +1378,15 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                       type="number"
                       value={wizardSalary || ""}
                       onChange={(e) => setWizardSalary(Number(e.target.value))}
-                      className="w-full text-center text-2xl font-black bg-slate-900 border border-slate-800 rounded-xl py-3.5 text-emerald-400 outline-none focus:border-emerald-500 font-mono shadow-inner shadow-black/40"
+                      className="w-full text-center text-xl font-bold bg-slate-900 border border-slate-800 rounded-xl py-2 text-emerald-400 outline-none focus:border-emerald-500 font-mono shadow-inner shadow-black/40"
                       placeholder="14000"
                     />
                   </div>
                 )}
 
                 {setupStep === 2 && (
-                  <div className="my-auto space-y-4">
-                    <div className="space-y-1">
+                  <div className="my-auto space-y-2.5">
+                    <div className="space-y-0.5">
                       <h3 className="text-md font-bold text-white">{t.salaryDayInput}</h3>
                       <p className="text-[10px] text-slate-400 leading-relaxed font-sans">{isAr ? "نحدد هذا التاريخ لحساب فترات الدورة المالية." : "Expected date of depositing payroll to calibrate month intervals."}</p>
                     </div>
@@ -1396,33 +1396,33 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                       max="31"
                       value={wizardSalaryDay || ""}
                       onChange={(e) => setWizardSalaryDay(Math.min(31, Math.max(1, Number(e.target.value))))}
-                      className="w-full text-center text-2xl font-black bg-slate-900 border border-slate-800 rounded-xl py-3.5 text-emerald-400 outline-none focus:border-emerald-500 font-mono shadow-inner shadow-black/40"
+                      className="w-full text-center text-xl font-bold bg-slate-900 border border-slate-800 rounded-xl py-2 text-emerald-400 outline-none focus:border-emerald-500 font-mono shadow-inner shadow-black/40"
                       placeholder="25"
                     />
                   </div>
                 )}
 
                 {setupStep === 3 && (
-                  <div className="my-auto space-y-3.5">
-                    <div className="space-y-1">
-                      <h3 className="text-md font-bold text-white">{t.fixedCostsInput}</h3>
-                      <p className="text-[10px] text-slate-400 leading-relaxed font-sans">{t.fixedCostsDesc}</p>
+                  <div className="my-auto space-y-2 pb-1">
+                    <div className="space-y-0.5">
+                      <h3 className="text-sm font-bold text-white">{t.fixedCostsInput}</h3>
+                      <p className="text-[9.5px] text-slate-400 leading-normal font-sans">{t.fixedCostsDesc}</p>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1.5">
                       <input
                         type="text"
-                        placeholder={isAr ? "اسم الفاتورة (إيجار، إنترنت...)" : "Invoice (Rent, WiFi...)"}
+                        placeholder={isAr ? "اسم الفاتورة (إيجار...)" : "Invoice (Rent...)"}
                         value={tempFixedName}
                         onChange={(e) => setTempFixedName(e.target.value)}
-                        className="bg-slate-900 border border-slate-850 rounded-xl py-2 px-3 text-xs text-white focus:border-emerald-500 outline-none"
+                        className="bg-slate-900 border border-slate-850 rounded-xl py-1.5 px-2.5 text-xs text-white focus:border-emerald-500 outline-none"
                       />
                       <input
                         type="number"
                         placeholder={isAr ? "المبلغ الشهري" : "Amount Monthly"}
                         value={tempFixedAmount || ""}
                         onChange={(e) => setTempFixedAmount(e.target.value)}
-                        className="bg-slate-900 border border-slate-850 rounded-xl py-2 px-3 text-xs text-white focus:border-emerald-500 outline-none font-mono"
+                        className="bg-slate-900 border border-slate-850 rounded-xl py-1.5 px-2.5 text-xs text-white focus:border-emerald-500 outline-none font-mono"
                       />
                     </div>
 
@@ -1436,26 +1436,26 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                         setTempFixedName("");
                         setTempFixedAmount("");
                       }}
-                      className="w-full py-2.5 bg-slate-900 text-emerald-400 font-bold text-xs rounded-xl border border-slate-800 hover:bg-slate-850 active:scale-95 transition"
+                      className="w-full py-2 bg-slate-900 text-emerald-400 font-bold text-xs rounded-xl border border-slate-800 hover:bg-slate-850 active:scale-95 transition"
                     >
                       {isAr ? "+ حفظ الالتزام الشهري" : "+ Save commitment"}
                     </button>
 
-                    <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1">
+                    <div className="space-y-1 max-h-[90px] overflow-y-auto pr-1">
                       {wizardFixedList.map(item => (
-                        <div key={item.id} className="flex justify-between items-center bg-slate-900/60 p-2.5 rounded-xl border border-slate-850 text-[11px] text-right">
-                          <span className="font-semibold text-slate-305">{item.name}</span>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-rose-500 font-mono">-{item.amount} {t.currency}</span>
+                        <div key={item.id} className="flex justify-between items-center bg-slate-900/60 py-1.5 px-2.5 rounded-lg border border-slate-850 text-[10.5px]">
+                          <span className="font-semibold text-slate-300">{item.name}</span>
+                          <div className="flex items-center gap-1.5 font-mono">
+                            <span className="font-bold text-rose-500">-{item.amount} {t.currency}</span>
                             <Trash2 
-                              className="h-3.5 w-3.5 text-rose-500 cursor-pointer active:scale-90" 
+                              className="h-3 w-3 text-rose-500 cursor-pointer active:scale-90" 
                               onClick={() => setWizardFixedList(p => p.filter(x => x.id !== item.id))} 
                             />
                           </div>
                         </div>
                       ))}
                       {wizardFixedList.length === 0 && (
-                        <p className="text-center text-[10px] text-slate-500 italic py-2">
+                        <p className="text-center text-[9px] text-slate-500 italic py-1">
                           {isAr ? "لا توجد التزامات مدونة حالياً." : "No commitments logged yet."}
                         </p>
                       )}
@@ -1464,26 +1464,26 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                 )}
 
                 {setupStep === 4 && (
-                  <div className="my-auto space-y-3.5">
-                    <div className="space-y-1">
-                      <h3 className="text-md font-bold text-white">{t.extraIncomeInput}</h3>
-                      <p className="text-[10px] text-slate-400 leading-relaxed font-sans">{isAr ? "مصادر دخل دورية مرنة أو أعمال جانبية تدعم استقرار ميزانيتك:" : "Any extra consistent sources, consulting dividends or side work:"}</p>
+                  <div className="my-auto space-y-2 pb-1">
+                    <div className="space-y-0.5">
+                      <h3 className="text-sm font-bold text-white">{t.extraIncomeInput}</h3>
+                      <p className="text-[9.5px] text-slate-400 leading-normal font-sans">{isAr ? "مصادر دخل دورية أعمال جانبية استثمارية:" : "Any consistent dividends, freelancing or consulting:"}</p>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1.5">
                       <input
                         type="text"
-                        placeholder={isAr ? "عمل مرن، تجارة..." : "Side hustle, tutoring..."}
+                        placeholder={isAr ? "عمل مرن، تجارة..." : "Side hustle..."}
                         value={tempIncSource}
                         onChange={(e) => setTempIncSource(e.target.value)}
-                        className="bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-white focus:border-emerald-500 outline-none"
+                        className="bg-slate-900 border border-slate-800 rounded-xl py-1.5 px-2.5 text-xs text-white focus:border-emerald-500 outline-none"
                       />
                       <input
                         type="number"
                         placeholder={isAr ? "المبلغ" : "Amount"}
                         value={tempIncAmount || ""}
                         onChange={(e) => setTempIncAmount(e.target.value)}
-                        className="bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-white focus:border-emerald-500 outline-none font-mono"
+                        className="bg-slate-900 border border-slate-800 rounded-xl py-1.5 px-2.5 text-xs text-white focus:border-emerald-500 outline-none font-mono"
                       />
                     </div>
 
@@ -1497,26 +1497,26 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                         setTempIncSource("");
                         setTempIncAmount("");
                       }}
-                      className="w-full py-2.5 bg-slate-900 text-emerald-400 font-bold text-xs rounded-xl border border-slate-800 hover:bg-slate-850 active:scale-95 transition"
+                      className="w-full py-2 bg-slate-900 text-emerald-400 font-bold text-xs rounded-xl border border-slate-800 hover:bg-slate-850 active:scale-95 transition"
                     >
                       {isAr ? "+ إضافة مصدر دخل ثانوي" : "+ Add Side Income"}
                     </button>
 
-                    <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1">
+                    <div className="space-y-1 max-h-[90px] overflow-y-auto pr-1">
                       {wizardIncomes.map(item => (
-                        <div key={item.id} className="flex justify-between items-center bg-slate-900/60 p-2.5 rounded-xl border border-slate-850 text-[11px] text-right">
-                          <span className="font-semibold text-slate-305">{item.source}</span>
+                        <div key={item.id} className="flex justify-between items-center bg-slate-900/60 py-1.5 px-2.5 rounded-lg border border-slate-850 text-[10.5px]">
+                          <span className="font-semibold text-slate-350">{item.source}</span>
                           <div className="flex items-center gap-1.5 font-mono">
                             <span className="font-bold text-emerald-400">+{item.amount} {t.currency}</span>
                             <Trash2 
-                              className="h-3.5 w-3.5 text-rose-500 cursor-pointer active:scale-90" 
+                              className="h-3 w-3 text-rose-500 cursor-pointer active:scale-90" 
                               onClick={() => setWizardIncomes(p => p.filter(x => x.id !== item.id))} 
                             />
                           </div>
                         </div>
                       ))}
                       {wizardIncomes.length === 0 && (
-                        <p className="text-center text-[10px] text-slate-500 italic py-2">
+                        <p className="text-center text-[9px] text-slate-500 italic py-1">
                           {isAr ? "لا توجد عوائد إضافية مدونة." : "No side incomes logged yet."}
                         </p>
                       )}
@@ -1525,55 +1525,55 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                 )}
 
                 {setupStep === 5 && (
-                  <div className="my-auto space-y-3.5">
-                    <div className="space-y-1">
-                      <h3 className="text-md font-bold text-white">{t.addGoalTitle}</h3>
-                      <p className="text-[10px] text-slate-400 leading-relaxed font-sans">{isAr ? "حدد هدفًا طموحًا تود الادخار تدريجيًا لتحقيقه:" : "Define an exciting goal to purchase using customized savings schedule:"}</p>
+                  <div className="my-auto space-y-2.5 pb-1">
+                    <div className="space-y-0.5">
+                      <h3 className="text-sm font-bold text-white">{t.addGoalTitle}</h3>
+                      <p className="text-[9.5px] text-slate-400 leading-normal font-sans">{isAr ? "حدد هدفًا طموحًا تود الادخار لتحقيقه:" : "Define an exciting target to accumulate savings for:"}</p>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <input
                         type="text"
-                        placeholder={isAr ? "اسم السلعة (أيفون، حاسوب، رحلة...)" : "Goal item (e.g. laptop, flight...)"}
+                        placeholder={isAr ? "اسم السلعة (أيفون، حاسوب، رحلة...)" : "Goal item (e.g. laptop...)"}
                         value={tempGoalName}
                         onChange={(e) => setTempGoalName(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-white focus:border-emerald-500 outline-none"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl py-1.5 px-2.5 text-xs text-white focus:border-emerald-500 outline-none"
                       />
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-1.5">
                         <input
                           type="number"
                           placeholder={isAr ? "المبلغ الإجمالي" : "Price tag"}
                           value={tempGoalPrice || ""}
                           onChange={(e) => setTempGoalPrice(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-white focus:border-emerald-500 outline-none font-mono"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl py-1.5 px-2.5 text-xs text-white focus:border-emerald-500 outline-none font-mono"
                         />
                         <input
                           type="date"
                           value={tempGoalDate}
                           onChange={(e) => setTempGoalDate(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-400 focus:border-emerald-500 outline-none"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl py-1.5 px-2.5 text-xs text-slate-400 focus:border-emerald-500 outline-none"
                         />
                       </div>
                     </div>
 
                     <button
                       onClick={handleAddGoalInWizard}
-                      className="w-full py-2.5 bg-emerald-500/10 text-emerald-400 font-bold text-xs rounded-xl border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-95 transition"
+                      className="w-full py-2 bg-emerald-500/10 text-emerald-400 font-bold text-xs rounded-xl border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-95 transition"
                     >
                       {isAr ? "+ حفظ الهدف في الميزانية" : "+ Add Goal to Ledger"}
                     </button>
 
-                    <div className="text-[10px] text-slate-500 text-center leading-normal">
-                      {isAr ? "* سيقوم محرك غيوم الذكاء الاصطناعي بتخصيص جداول ادخار أسبوعية تضمن تملك الأصول بموعدها." : "* Al-Ameen AI will formulate weekly schedules to match due dates."}
+                    <div className="text-[9px] text-slate-500 text-center leading-normal">
+                      {isAr ? "* سيقوم محرك الذكاء الاصطناعي بتوزيع خطط الادخار تلقائياً." : "* Finora AI will auto-adjust daily surplus parameters."}
                     </div>
                   </div>
                 )}
 
                 {setupStep === 6 && (
-                  <div className="my-auto space-y-3.5">
-                    <h3 className="text-md font-bold text-white text-center">{t.summaryTitle}</h3>
-                    <p className="text-[10px] text-slate-400 text-center leading-normal">{t.summaryText}</p>
+                  <div className="my-auto space-y-2.5">
+                    <h3 className="text-sm font-bold text-white text-center">{t.summaryTitle}</h3>
+                    <p className="text-[9.5px] text-slate-400 text-center leading-normal">{t.summaryText}</p>
 
-                    <div className="bg-slate-900 p-3.5 rounded-xl border border-slate-850 space-y-2.5 font-mono text-xs">
+                    <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-850 space-y-1.5 font-mono text-[10.5px]">
                       <div className="flex justify-between">
                         <span className="text-slate-400">{isAr ? "الدخل الأساسي والفرعي:" : "Base & Side revenues:"}</span>
                         <span className="text-emerald-400 font-bold">{wizardSalary + wizardIncomes.reduce((s, i) => s + i.amount, 0)} {t.currency}</span>
@@ -1582,25 +1582,25 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                         <span className="text-slate-400">{isAr ? "الفواتير المقررة مسبقاً:" : "Fixed committed outgoings:"}</span>
                         <span className="text-yellow-600 font-bold">{wizardFixedList.reduce((s, f) => s + f.amount, 0)} {t.currency}</span>
                       </div>
-                      <div className="border-t border-slate-800 pt-2 flex justify-between">
+                      <div className="border-t border-slate-850 pt-1 flex justify-between">
                         <span className="text-slate-400">{isAr ? "تقدير ميزانية الأمان اليومية:" : "Daily disposable limit:"}</span>
-                        <span className="text-emerald-300 font-extrabold text-[13px]">
+                        <span className="text-emerald-300 font-extrabold text-xs">
                           {Math.max(1, Math.round(((wizardSalary - wizardFixedList.reduce((s, f) => s + f.amount, 0)) / 30)))} {t.currency}
                         </span>
                       </div>
                     </div>
 
-                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-[9px] leading-relaxed">
+                    <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-[8.5px] leading-relaxed">
                       📢 {isAr ? "جاهز للانطلاق! يمكنك تعديل الإيرادات والالتزامات في أي وقت لاحقاً." : "Ready to explore! Adjust values any time dynamically."}
                     </div>
                   </div>
                 )}
 
-                <div className="flex gap-3 pt-3 border-t border-slate-900">
+                <div className="flex gap-2.5 pt-2 border-t border-slate-900">
                   {setupStep > 1 && (
                     <button
                       onClick={() => setSetupStep(p => p - 1)}
-                      className="py-2 px-3 rounded-lg bg-slate-900 text-slate-300 hover:bg-slate-850 active:scale-95 transition text-[11px] font-bold"
+                      className="py-1.5 px-3 rounded-lg bg-slate-900 text-slate-300 hover:bg-slate-850 active:scale-95 transition text-[10.5px] font-bold"
                     >
                       {t.back}
                     </button>
@@ -1613,7 +1613,7 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                         handleSaveSetupWizard();
                       }
                     }}
-                    className="flex-grow py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black transition text-xs shadow-md shadow-emerald-500/10 cursor-pointer text-center"
+                    className="flex-grow py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black transition text-xs shadow-md shadow-emerald-500/10 cursor-pointer text-center"
                   >
                     {setupStep === 6 ? t.finish : t.next}
                   </button>
@@ -1628,7 +1628,7 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
             
             <AnimatePresence>
               {state.notifications.some(n => !n.read) && (
-                <div id="inline-notification-toast" className="absolute top-2 inset-x-3 bg-slate-900 border border-slate-800 p-3 rounded-xl text-slate-100 z-50 shadow-lg">
+                <div id="inline-notification-toast" className="absolute top-2 inset-x-3 bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-slate-100 z-50 shadow-lg">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-emerald-400 shrink-0" />
@@ -1642,7 +1642,7 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2 mt-2 justify-end text-[8px] font-bold">
+                  <div className="flex gap-2 mt-1.5 justify-end text-[8px] font-bold">
                     <button
                       onClick={() => handleNotificationAction(state.notifications[0], 'dont_remember')}
                       className="px-2 py-0.5 bg-slate-950 text-slate-400 border border-slate-850 rounded"
@@ -1660,158 +1660,160 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
               )}
             </AnimatePresence>
 
-            <div className="flex-grow overflow-y-auto px-4 pt-3 pb-16 space-y-3.5 max-h-[750px]">
+            <div className={`flex-grow ${activeTab === 'coach' ? 'flex flex-col overflow-hidden pb-14' : 'overflow-y-auto pb-20 space-y-2.5'} px-3 pt-2.5 relative`}>
               
-              {/* ==================== TAB 1: HOME ==================== */}
+               {/* ==================== TAB 1: HOME ==================== */}
               {activeTab === 'home' && (
-                <div id="home-dashboard-view" className="space-y-3.5">
-                  <div className="flex justify-between items-center bg-slate-900/40 border border-slate-900 rounded-xl p-3 shadow-inner">
+                <div id="home-dashboard-view" className="space-y-3">
+                  <div className="flex justify-between items-center bg-slate-900/40 border border-slate-900 rounded-xl p-2.5 shadow-inner">
                     <div>
                       <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider">{t.appName}</span>
-                      <h2 className="text-sm font-black text-white">{isAr ? "عضو محلي مميز" : "Premium Member"} ✨</h2>
+                      <h2 className="text-xs font-black text-white">{isAr ? "عضو محلي مميز" : "Premium Member"} ✨</h2>
                     </div>
-                    <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center">
-                      <Sparkles className="h-4 w-4 text-emerald-400" />
+                    <div className="w-7 h-7 rounded bg-slate-900 border border-slate-850 flex items-center justify-center">
+                      <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
                     </div>
                   </div>
 
-                  <div className="bg-gradient-to-b from-slate-900/80 to-slate-900/30 border border-slate-850 rounded-[24px] p-4.5 text-center relative overflow-hidden shadow-lg shadow-black/10">
-                    <p className="text-[10px] text-slate-400 font-semibold mb-1 uppercase tracking-wider">{t.safeDailySpend}</p>
-                    <h3 className="text-3xl font-black text-emerald-400 font-mono tracking-tight my-1">
-                      {m.dailyDisposableAllocation} <span className="text-sm text-emerald-500 font-sans">{t.currency}</span>
+                  <div className="bg-gradient-to-b from-slate-900/80 to-slate-900/30 border border-slate-850 rounded-2xl p-3 text-center relative overflow-hidden shadow-lg shadow-black/10">
+                    <p className="text-[9px] text-slate-400 font-semibold mb-0.5 uppercase tracking-wider">{t.safeDailySpend}</p>
+                    <h3 className="text-xl font-black text-emerald-400 font-mono tracking-tight my-0.5">
+                      {m.dailyDisposableAllocation} <span className="text-[10px] text-emerald-500 font-sans">{t.currency}</span>
                     </h3>
-                    <div className="flex justify-center items-center gap-1.5 mt-2 text-[9px] text-slate-400 bg-slate-950/40 py-1 px-3 rounded-full w-fit mx-auto border border-slate-850">
-                      <Calendar className="h-3 w-3 text-emerald-400" />
+                    <div className="flex justify-center items-center gap-1 mt-1 text-[8px] text-slate-400 bg-slate-950/40 py-0.5 px-2 rounded-full w-fit mx-auto border border-slate-850">
+                      <Calendar className="h-2.5 w-2.5 text-emerald-400" />
                       <span>{isAr ? `متبقي ${m.daysRemaining} يوم على الراتب التالي` : `${m.daysRemaining} days left until payroll`}</span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-slate-900 border border-slate-850 rounded-xl p-2 text-center">
-                      <p className="text-[8px] text-slate-500 font-semibold mb-0.5">{t.totalSalary}</p>
-                      <p className="text-[11px] font-bold text-white font-mono">{m.grossMonthlyRevenue} <span className="text-[7px]">{t.currency}</span></p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <div className="bg-slate-900 border border-slate-850 rounded-lg p-1 text-center">
+                      <p className="text-[7.5px] text-slate-500 font-semibold mb-0.5">{t.totalSalary}</p>
+                      <p className="text-[10px] font-bold text-white font-mono">{m.grossMonthlyRevenue} <span className="text-[6px]">{t.currency}</span></p>
                     </div>
-                    <div className="bg-slate-900 border border-slate-850 rounded-xl p-2 text-center">
-                      <p className="text-[8px] text-slate-500 font-semibold mb-0.5">{t.fixedOverhead}</p>
-                      <p className="text-[11px] font-bold text-yellow-600 font-mono">-{m.directFixedLiabilities} <span className="text-[7px]">{t.currency}</span></p>
+                    <div className="bg-slate-900 border border-slate-850 rounded-lg p-1 text-center">
+                      <p className="text-[7.5px] text-slate-500 font-semibold mb-0.5">{t.fixedOverhead}</p>
+                      <p className="text-[10px] font-bold text-yellow-600 font-mono">-{m.directFixedLiabilities} <span className="text-[6px]">{t.currency}</span></p>
                     </div>
-                    <div className="bg-slate-900 border border-slate-850 rounded-xl p-2 text-center">
-                      <p className="text-[8px] text-slate-500 font-semibold mb-0.5">{isAr ? "المسجل" : "Spent"}</p>
-                      <p className="text-[11px] font-bold text-rose-500 font-mono">-{m.totalDynamicExpensesThisMonth} <span className="text-[7px]">{t.currency}</span></p>
+                    <div className="bg-slate-900 border border-slate-850 rounded-lg p-1 text-center">
+                      <p className="text-[7.5px] text-slate-500 font-semibold mb-0.5">{isAr ? "المسجل" : "Spent"}</p>
+                      <p className="text-[10px] font-bold text-rose-500 font-mono">-{m.totalDynamicExpensesThisMonth} <span className="text-[6px]">{t.currency}</span></p>
                     </div>
                   </div>
 
                   {state.aiInsights.length > 0 && (
-                    <div className="p-3 bg-slate-900 border border-slate-850 rounded-xl space-y-1.5">
-                      <div className="flex justify-between items-center border-b border-slate-850 pb-1.5">
+                    <div className="p-2.5 bg-slate-900 border border-slate-850 rounded-lg space-y-1">
+                      <div className="flex justify-between items-center border-b border-slate-850 pb-1">
                         <div className="flex items-center gap-1">
-                          <Lightbulb className="h-3.5 w-3.5 text-amber-400" />
-                          <span className="text-[9px] font-bold text-white">{t.aiInsights}</span>
+                          <Lightbulb className="h-3 w-3 text-amber-400" />
+                          <span className="text-[8.5px] font-bold text-white">{t.aiInsights}</span>
                         </div>
                         <button 
                           onClick={handleFetchInsights} 
                           disabled={insightsLoading}
-                          className="p-1 rounded bg-slate-950 border border-slate-800 text-[8px] text-emerald-400 flex items-center gap-1 hover:bg-slate-900 transition"
+                          className="p-0.5 rounded bg-slate-950 border border-slate-800 text-[7px] text-emerald-400 flex items-center gap-1 hover:bg-slate-900 transition"
                         >
-                          <RefreshCw className={`h-2.5 w-2.5 ${insightsLoading ? 'animate-spin' : ''}`} />
+                          <RefreshCw className={`h-2 w-2 ${insightsLoading ? 'animate-spin' : ''}`} />
                         </button>
                       </div>
-                      <p className="text-[10px] text-slate-300 leading-relaxed font-sans">
+                      <p className="text-[9px] text-slate-300 leading-relaxed font-sans">
                         {isAr ? state.aiInsights[0].textAr : state.aiInsights[0].textEn}
                       </p>
                     </div>
                   )}
 
                   {/* Borrowed Money Card (Owed to Me) */}
-                  <div className="bg-slate-900 border border-slate-850 rounded-2xl p-4.5 space-y-3.5 shadow-lg">
-                    <div className="flex justify-between items-center border-b border-slate-850 pb-2.5">
-                      <div className="flex items-center gap-2">
-                        <HandCoins className="h-4 w-4 text-emerald-400" />
-                        <span className="text-xs font-bold text-white">{t.borrowedSectionTitle}</span>
+                  <div className="bg-slate-900 border border-slate-850 rounded-lg p-2.5 space-y-2 shadow-sm">
+                    <div className="flex justify-between items-center border-b border-slate-850 pb-1">
+                      <div className="flex items-center gap-1">
+                        <HandCoins className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="text-[10px] font-bold text-white">{t.borrowedSectionTitle}</span>
                       </div>
                       <button
                         onClick={() => setShowLentModal(true)}
-                        className="py-1 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[9px] rounded-lg transition cursor-pointer"
+                        className="py-0.5 px-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[8px] rounded-sm transition cursor-pointer"
                       >
                         + {t.addLentBtn}
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-center">
-                      <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-850/60">
-                        <p className="text-[8px] text-slate-500 font-semibold mb-0.5">{t.totalLentPending}</p>
-                        <p className="text-[11px] font-bold text-amber-500 font-mono">{m.totalLentPending} {t.currency}</p>
+                    <div className="grid grid-cols-2 gap-1.5 text-center">
+                      <div className="bg-slate-950 p-1.5 rounded-md border border-slate-855">
+                        <p className="text-[7.5px] text-slate-500 font-semibold mb-0.5">{t.totalLentPending}</p>
+                        <p className="text-[9.5px] font-bold text-amber-500 font-mono">{m.totalLentPending} {t.currency}</p>
                       </div>
-                      <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-850/60">
-                        <p className="text-[8px] text-slate-500 font-semibold mb-0.5">{t.totalLentRecovered}</p>
-                        <p className="text-[11px] font-bold text-emerald-400 font-mono">{m.totalLentRecovered} {t.currency}</p>
+                      <div className="bg-slate-950 p-1.5 rounded-md border border-slate-855">
+                        <p className="text-[7.5px] text-slate-500 font-semibold mb-0.5">{t.totalLentRecovered}</p>
+                        <p className="text-[9.5px] font-bold text-emerald-400 font-mono">{m.totalLentRecovered} {t.currency}</p>
                       </div>
                     </div>
 
-                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-0.5">
+                    <div className="space-y-1 max-h-[110px] overflow-y-auto pr-0.5 font-sans">
                       {(state.borrowedRecords || []).map((rec) => (
                         <div
                           key={rec.id}
                           onClick={() => setActiveLentRecord(rec)}
-                          className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-850 rounded-xl cursor-pointer hover:border-slate-700 transition"
+                          className="flex items-center justify-between py-1 px-1.5 bg-slate-950/60 border border-slate-850 rounded cursor-pointer hover:border-slate-755 transition"
                         >
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${rec.isRepaid ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></div>
+                          <div className="flex items-center gap-1">
+                            <div className={`w-1.5 h-1.5 rounded-full ${rec.isRepaid ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></div>
                             <div className="text-right">
-                              <p className="text-[10px] font-bold text-slate-100">{rec.debtorName}</p>
-                              <p className="text-[7.5px] text-slate-500">{t.lentDate}: {rec.lentDate} {rec.dueDate ? `• ${t.dueDate}: ${rec.dueDate}` : ""}</p>
+                              <p className="text-[9px] font-bold text-slate-100 leading-tight">{rec.debtorName}</p>
+                              <p className="text-[7px] text-slate-500">{t.lentDate}: {rec.lentDate} {rec.dueDate ? `• ${t.dueDate}: ${rec.dueDate}` : ""}</p>
                             </div>
                           </div>
-                          <div className="text-left">
-                            <p className="text-[10px] font-bold font-mono text-white">
+                          <div className="text-left flex flex-col items-end">
+                            <p className="text-[9px] font-bold font-mono text-white leading-tight">
                               {rec.amount} {t.currency}
                             </p>
                             {rec.repaidAmount > 0 && rec.repaidAmount < rec.amount && (
-                              <p className="text-[7px] text-emerald-400 font-mono">
+                              <p className="text-[6.5px] text-emerald-400 font-mono leading-none">
                                 {t.partiallyRepaid}: {rec.repaidAmount}
                               </p>
                             )}
-                            <Badge text={rec.isRepaid ? t.isRepaid : t.notRepaid} color={rec.isRepaid ? "emerald" : "amber"} />
+                            <div className="scale-[0.7] origin-right mt-0.5">
+                              <Badge text={rec.isRepaid ? t.isRepaid : t.notRepaid} color={rec.isRepaid ? "emerald" : "amber"} />
+                            </div>
                           </div>
                         </div>
                       ))}
 
                       {(state.borrowedRecords || []).length === 0 && (
-                        <p className="text-center text-[9px] text-slate-500 italic py-3">{t.noLentRecords}</p>
+                        <p className="text-center text-[8px] text-slate-500 italic py-1.5">{t.noLentRecords}</p>
                       )}
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex justify-between items-center text-[11px]">
+                    <div className="flex justify-between items-center text-[10px]">
                       <span className="text-slate-400 font-bold">{t.recentExpenses}</span>
                       <span className="text-emerald-400 font-semibold cursor-pointer" onClick={() => setActiveTab('expenses')}>
                         {isAr ? "عرض الكل ←" : "See All ←"}
                       </span>
                     </div>
 
-                    <div className="space-y-1 bg-slate-900/20 rounded-xl border border-slate-900 p-1">
+                    <div className="space-y-1 bg-slate-900/20 rounded-xl border border-slate-900 p-0.5">
                       {state.expenses.slice(0, 3).map((exp) => (
                         <div
                           key={exp.id}
-                          className="flex items-center justify-between p-2 bg-slate-900/60 border border-slate-850 rounded-lg text-xs"
+                          className="flex items-center justify-between p-1.5 bg-slate-900/40 border border-slate-850 rounded-lg text-[10.5px]"
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="text-base text-emerald-450">💸</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm shrink-0">💸</span>
                             <div className="text-right">
                               <p className="font-bold text-white text-[10px]">
                                 {t.categories[exp.category as keyof typeof t.categories] || exp.category}
                               </p>
-                              {exp.note && <p className="text-[8px] text-slate-500">{exp.note}</p>}
+                              {exp.note && <p className="text-[7.5px] text-slate-500 mt-0.5 leading-none">{exp.note}</p>}
                             </div>
                           </div>
-                          <span className="font-mono font-bold text-rose-500 text-[11px]">
+                          <span className="font-mono font-bold text-rose-500 text-[10px]">
                             -{exp.amount} {t.currency}
                           </span>
                         </div>
                       ))}
                       {state.expenses.length === 0 && (
-                        <p className="text-center text-[9px] text-slate-500 italic py-3">{t.emptyExpenses}</p>
+                        <p className="text-center text-[8.5px] text-slate-500 italic py-2">{t.emptyExpenses}</p>
                       )}
                     </div>
                   </div>
@@ -2413,91 +2415,7 @@ ${state.goals.map(g => `- ${g.name}: Target: ${g.targetAmount}, Saved: ${g.saved
                   </motion.div>
                 </div>
               )}
-
-              {/* SETTLE LIABILITY RECOVERY MODAL overlay */}
-              {activeLentRecord && (
-                <div id="settle-modal-overlay" className="absolute inset-0 bg-black/60 z-50 flex flex-col justify-end">
-                  <motion.div
-                    initial={{ y: 200, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: 200, opacity: 0 }}
-                    className="bg-slate-900 border-t border-slate-800 rounded-t-[32px] p-6 space-y-4 text-right"
-                  >
-                    <div className="flex justify-between items-center border-b border-slate-850 pb-2.5">
-                      <h4 className="text-sm font-bold text-white">{t.recoveryActions}</h4>
-                      <button onClick={() => setActiveLentRecord(null)} className="text-slate-500 text-xs">✕</button>
-                    </div>
-
-                    <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-850 space-y-2 text-xs">
-                      <p className="text-slate-400 text-right">
-                        {isAr ? "المدين الحالي" : "Current Debtor"}: <strong className="text-white">{activeLentRecord.debtorName}</strong>
-                      </p>
-                      <p className="text-slate-400 text-right">
-                        {isAr ? "المبلغ المتبقي المعلق برسم التحصيل" : "Outstanding balance to recover"}: <strong className="text-amber-500 font-mono">{activeLentRecord.amount - activeLentRecord.repaidAmount} {t.currency}</strong>
-                      </p>
-                      <p className="text-[10px] text-slate-500 text-right">
-                        {isAr ? "إجمالي مبلغ القرض الأساسي" : "Initial borrowing principal"}: {activeLentRecord.amount} {t.currency} • {t.lentDate}: {activeLentRecord.lentDate}
-                      </p>
-                      {activeLentRecord.notes && (
-                        <p className="text-[9px] text-slate-500 bg-slate-900 p-2 rounded-lg text-right whitespace-pre-wrap font-sans">
-                          {t.notes}: {activeLentRecord.notes}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-3">
-                      {/* Partial input */}
-                      <div className="space-y-1">
-                        <label className="block text-[9px] text-slate-500 font-bold text-right">{t.repayPartialAmt} :</label>
-                        <div className="flex gap-2">
-                          <input
-                            type="number"
-                            placeholder={isAr ? "أدّ المبلغ" : "Amount"}
-                            value={recoverAmount}
-                            onChange={(e) => setRecoverAmount(e.target.value)}
-                            className="bg-slate-955 border border-slate-850 rounded-xl py-2 px-3 text-xs text-white outline-none flex-1 font-mono text-center"
-                          />
-                          <button
-                            onClick={() => {
-                              const ramt = Number(recoverAmount);
-                              if (!ramt || ramt <= 0) {
-                                alert(isAr ? "يرجى تحديد تفاصيل الدفعة بدقة" : "Please specify proper decimal amount.");
-                                return;
-                              }
-                              handleSettleLentRecord(activeLentRecord.id, 'partial', ramt);
-                            }}
-                            className="bg-amber-500/10 border border-amber-500 text-amber-500 hover:bg-amber-500/20 font-bold rounded-xl py-2 px-4 text-xs cursor-pointer"
-                          >
-                            {t.repayPartial}
-                          </button>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => handleSettleLentRecord(activeLentRecord.id, 'full')}
-                        className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-bold text-xs cursor-pointer flex justify-center items-center gap-2"
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                        {t.repayFull}
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setState(prev => ({
-                            ...prev,
-                            borrowedRecords: (prev.borrowedRecords || []).filter(r => r.id !== activeLentRecord.id)
-                          }));
-                          setActiveLentRecord(null);
-                        }}
-                        className="w-full py-2 bg-rose-955/15 border border-rose-950 text-rose-500 rounded-xl font-bold text-[10px] cursor-pointer"
-                      >
-                        {isAr ? "حذف هذا القيد المالي نهائياً" : "Delete record from lended list permanently"}
-                      </button>
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
+             </AnimatePresence>
 
             {/* FLOATING TRANSIT FAST TRANSIT RECORD LOGGING ACTION (+) */}
             {activeTab !== 'coach' && (
