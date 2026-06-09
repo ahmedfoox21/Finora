@@ -11,6 +11,7 @@ import { registerUser, loginUser, syncState, getSyncedState } from "./server/aut
 import { generateBudgetInsights, evaluateShoppingGoal, handleFinancialChat } from "./server/gemini";
 import { initializeFirebaseAdmin, registerDeviceToken } from "./server/push";
 import { runScheduledNotificationsAudit, startDaemonScheduler } from "./server/scheduler";
+import { createPayPalOrder, capturePayPalOrder } from "./server/paypal";
 import { prisma } from "./server/db";
 
 // Load environment variables
@@ -179,6 +180,55 @@ async function startServer() {
       res.status(200).json({ success: true, updated });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error?.message || "Status update failure" });
+    }
+  });
+
+  // API - PayPal Donations
+  app.post("/api/paypal/create-order", async (req, res) => {
+    const { amount, currency } = req.body;
+    if (isNaN(Number(amount)) || Number(amount) <= 0) {
+      res.status(400).json({ error: "Invalid donation amount specified." });
+      return;
+    }
+    try {
+      const order = await createPayPalOrder(Number(amount), currency || "USD");
+      res.status(200).json(order);
+    } catch (error: any) {
+      res.status(500).json({ error: error?.message || "Internal PayPal order error" });
+    }
+  });
+
+  app.post("/api/paypal/capture-order", async (req, res) => {
+    const { orderId, email, amount, currency } = req.body;
+    if (!orderId) {
+      res.status(400).json({ error: "Required fields: orderId" });
+      return;
+    }
+    try {
+      const result = await capturePayPalOrder(orderId, email || null, Number(amount || 0), currency || "USD");
+      if (result.success) {
+        res.status(200).json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error?.message || "Internal PayPal capture error" });
+    }
+  });
+
+  app.get("/api/paypal/donations", async (req, res) => {
+    try {
+      if (!prisma) {
+        res.status(500).json({ error: "Database is offline." });
+        return;
+      }
+      const donations = await prisma.donation.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      });
+      res.status(200).json({ success: true, donations });
+    } catch (error: any) {
+      res.status(500).json({ error: error?.message || "Can't fetch donation logs." });
     }
   });
 
