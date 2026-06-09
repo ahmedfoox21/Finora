@@ -3,18 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as adminNamespace from "firebase-admin";
+import * as admin from "firebase-admin";
 import { prisma } from "./db";
 
-const admin = (adminNamespace as any).default || adminNamespace;
-
 let isFirebaseInitialized = false;
-let isFirebaseCredentialValid = true;
 
 export function initializeFirebaseAdmin() {
-  if (isFirebaseInitialized) {
-    return isFirebaseCredentialValid;
-  }
+  if (isFirebaseInitialized) return true;
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -23,7 +18,7 @@ export function initializeFirebaseAdmin() {
     ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
     : undefined;
 
-  if (projectId && clientEmail && privateKey && !projectId.includes("YOUR_") && !clientEmail.includes("YOUR_")) {
+  if (projectId && clientEmail && privateKey) {
     try {
       admin.initializeApp({
         credential: admin.credential.cert({
@@ -33,7 +28,6 @@ export function initializeFirebaseAdmin() {
         }),
       });
       isFirebaseInitialized = true;
-      isFirebaseCredentialValid = true;
       console.log("[Push Service] Firebase Admin successfully initialized for real-time FCM Push deliveries.");
       return true;
     } catch (e) {
@@ -45,7 +39,6 @@ export function initializeFirebaseAdmin() {
         credential: admin.credential.applicationDefault()
       });
       isFirebaseInitialized = true;
-      isFirebaseCredentialValid = true;
       console.log("[Push Service] Firebase Admin initialized with GOOGLE_APPLICATION_CREDENTIALS.");
       return true;
     } catch (e) {
@@ -53,7 +46,7 @@ export function initializeFirebaseAdmin() {
     }
   }
 
-  console.warn("[Push Service] Real FCM variables are missing or default placeholders. Falling back to background simulator delivery logs.");
+  console.warn("[Push Service] Real FCM variables are missing. Falling back to background simulator delivery logs.");
   return false;
 }
 
@@ -168,27 +161,10 @@ export async function sendFCMToUser(
           await admin.messaging().send(message);
           deliveredCount++;
         } catch (fcmError: any) {
-          const errMsg = fcmError?.message || "";
-          const isCredentialError = errMsg.includes("fetch a valid Google OAuth2 access token") || 
-                                    errMsg.includes("invalid_grant") || 
-                                    errMsg.includes("credential") || 
-                                    errMsg.includes("unauthorized") || 
-                                    errMsg.includes("Unauthorized") ||
-                                    fcmError?.code === "app/invalid-credential" || 
-                                    fcmError?.code === "app/error-fetching-access-token";
-
-          if (isCredentialError) {
-            console.error("[Push Service] Critical: The Firebase credentials provided are invalid or unauthorized (e.g., account not found or keys revoked). Falling back to the background push notification simulator.");
-            isFirebaseCredentialValid = false;
-            // Deliver using emulator instead for remaining/current token
-            console.log(`[Push Emulator] FCM mock fallback. Title: "${displayTitle}" | Body: "${displayBody}" to token: ${t.token}`);
-            deliveredCount++;
-          } else {
-            console.error(`[Push Service] Failed delivering push token ${t.token}:`, errMsg);
-            // If token is invalid or inactive, sweep/delete it to maintain high-performance database health
-            if (fcmError?.code === 'messaging/registration-token-not-registered' || fcmError?.code === 'messaging/invalid-registration-token') {
-              await prisma.deviceToken.delete({ where: { id: t.id } }).catch(() => {});
-            }
+          console.error(`[Push Service] Failed delivering push token ${t.token}:`, fcmError?.message || fcmError);
+          // If token is invalid or inactive, sweep/delete it to maintain high-performance database health
+          if (fcmError?.code === 'messaging/registration-token-not-registered' || fcmError?.code === 'messaging/invalid-registration-token') {
+            await prisma.deviceToken.delete({ where: { id: t.id } }).catch(() => {});
           }
         }
       }
