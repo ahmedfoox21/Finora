@@ -1,0 +1,30 @@
+{
+  "name": "Finora - Smart Salary & Savings Assistant",
+  "short_name": "Finora",
+  "description": "Smart, bilingual salary planning, micro-savings, and debt-tracking assistant powered by local metrics and Gemini AI, designed by Ahmed Fox.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#10b981",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
